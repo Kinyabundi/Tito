@@ -19,24 +19,6 @@ export interface SubscriptionPayment extends PaymentInfo {
   features?: string[];
 }
 
-export interface UtilityPayment extends PaymentInfo {
-  usage: string;
-  rate: string;
-  accountNumber: string;
-}
-
-export interface InsurancePayment extends PaymentInfo {
-  deductible: string;
-  policyNumber: string;
-  coverage?: string;
-}
-
-export interface LoanPayment extends PaymentInfo {
-  principal: string;
-  interest: string;
-  remainingBalance: string;
-  loanNumber: string;
-}
 
 export interface ServiceRegistration {
   message: string;
