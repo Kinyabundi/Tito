@@ -19,7 +19,8 @@
     "morgan": "^1.10.0",
     "pouchdb": "^9.0.0",
     "winston": "^3.17.0",
-    "x402-express": "^0.4.0"
+    "x402-express": "^0.4.0",
+    "zod": "^3.25.67"
   },
   "devDependencies": {
     "@types/dotenv": "^8.2.3",

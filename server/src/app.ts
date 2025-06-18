@@ -9,12 +9,13 @@ import { createReactAgent, ToolNode } from "@langchain/langgraph/prebuilt";
 import { convertToOpenAITool } from "@langchain/core/utils/function_calling";
 import { StateGraph } from "@langchain/langgraph";
 import { Bot } from "grammy";
+import { rentRegisterTool } from "./tools";
 
 Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_PRIVATE_KEY.replace(/\\n/g, "\n") });
 
 const bot = new Bot(TELEGRAM_BOT_TOKEN);
 
-const titoTools = [];
+const titoTools = [rentRegisterTool];
 
 interface AgentConfig {
 	configurable: {
