@@ -1,0 +1,31 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "bun --watch src/index.ts"
+  },
+  "dependencies": {
+    "@coinbase/agentkit": "^0.8.2",
+    "@coinbase/agentkit-langchain": "^0.3.0",
+    "@langchain/community": "^0.3.46",
+    "@langchain/core": "^0.3.59",
+    "@langchain/langgraph": "^0.3.4",
+    "@langchain/openai": "^0.5.13",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "grammy": "^1.36.3",
+    "morgan": "^1.10.0",
+    "pouchdb": "^9.0.0",
+    "winston": "^3.17.0",
+    "x402-express": "^0.4.0"
+  },
+  "devDependencies": {
+    "@types/dotenv": "^8.2.3",
+    "@types/express": "^5.0.3",
+    "@types/morgan": "^1.9.10",
+    "@types/pouchdb": "^6.4.2",
+    "typescript": "^5.8.3"
+  }
+}
