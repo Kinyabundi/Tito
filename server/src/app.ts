@@ -8,10 +8,41 @@ import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { createReactAgent, ToolNode } from "@langchain/langgraph/prebuilt";
 import { convertToOpenAITool } from "@langchain/core/utils/function_calling";
 import { StateGraph } from "@langchain/langgraph";
-import { Bot } from "grammy";
+import { Bot, CallbackQueryContext, CommandContext, Context } from "grammy";
 import { rentRegisterTool } from "./tools";
+import { BotCommand, User } from "grammy/types";
+
+type TUser = User;
+
+type TUserState = Record<string, any>;
+
+const userStates: TUserState = {};
+
+type TQ = CallbackQueryContext<Context>;
 
 Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_PRIVATE_KEY.replace(/\\n/g, "\n") });
+
+const updateUserState = (user: TUser, state: any) => {
+	userStates[user.id] = { ...userStates[user.id], ...state };
+};
+
+const clearUserState = (user: TUser) => {
+	delete userStates[user.id];
+};
+
+const sendReply = async (ctx: CommandContext<Context>, text: string, options: Record<string, any> = {}) => {
+	const msg = await ctx.reply(text, options);
+	updateUserState(ctx.from, { messageId: msg.message_id });
+};
+
+const handleUserState = async (ctx: Context, handler: any) => {
+	const userState = userStates[ctx.from.id] || {};
+	if (ctx.message.reply_to_message && String(ctx.message.reply_to_message.message_id) === String(userState.messageId)) {
+		await handler(ctx);
+	} else {
+		await ctx.reply("Please select an option from the menu.");
+	}
+};
 
 const bot = new Bot(TELEGRAM_BOT_TOKEN);
 
@@ -20,11 +51,15 @@ const titoTools = [rentRegisterTool];
 interface AgentConfig {
 	configurable: {
 		thread_id: string;
-		walletAddress: string;
+		user_id: string;
 	};
 }
 
 type Agent = ReturnType<typeof createReactAgent>;
+
+const memoryStore: Record<string, MemorySaver> = {};
+
+const agentStore: Record<string, { agent: Agent; config: AgentConfig }> = {};
 
 function askHuman(state: typeof MessagesAnnotation.State): Partial<typeof MessagesAnnotation.State> {
 	const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
@@ -49,7 +84,7 @@ function shouldContinue(state: typeof MessagesAnnotation.State): "action" | "ask
 	return "action";
 }
 
-async function initAgent() {
+async function initAgent(user_id: string) {
 	try {
 		const llm = new ChatOpenAI({
 			model: "gpt-4o",
@@ -84,6 +119,12 @@ async function initAgent() {
 
 		const allTools = [...titoTools, ...tools];
 
+		memoryStore[user_id] = new MemorySaver();
+
+		const agentConfig: AgentConfig = {
+			configurable: { thread_id: user_id, user_id: user_id },
+		};
+
 		const toolNode = new ToolNode<typeof MessagesAnnotation.State>([...allTools]);
 
 		const modelWithTools = llm.bindTools(allTools.map((t) => convertToOpenAITool(t)));
@@ -103,16 +144,19 @@ async function initAgent() {
 			.addEdge("askHuman", "agent")
 			.addConditionalEdges("agent", shouldContinue);
 
-		const memory = new MemorySaver();
+		const app = workflow.compile({ checkpointer: memoryStore[user_id] });
 
-		const app = workflow.compile({ checkpointer: memory });
-	} catch (err) {}
+		return { app, agentConfig };
+	} catch (err) {
+		console.error("Failed to initialize agent:", err);
+		throw err;
+	}
 }
 
-async function processMessage(agent: Agent, config: AgentConfig, message: string, senderAddress: string): Promise<string> {
+async function processMessage(agent: Agent, config: AgentConfig, message: string, user_id: string): Promise<string> {
 	let response = "";
 	try {
-		const stream = await agent.stream({ messages: [new HumanMessage({ content: message, additional_kwargs: { walletAddress: senderAddress } })] }, config);
+		const stream = await agent.stream({ messages: [new HumanMessage({ content: message, additional_kwargs: { user_id: user_id } })] }, config);
 		for await (const event of stream) {
 			if (!event.__end__) {
 				const node = Object.keys(event)[0];
@@ -128,3 +172,74 @@ async function processMessage(agent: Agent, config: AgentConfig, message: string
 		return "Sorry, I encountered an error while processing your request. Please try again later.";
 	}
 }
+
+async function handleAndStreamMessage(ctx: Context) {
+	const { from: user } = ctx;
+	const message = ctx.message;
+	const user_id = String(user.id);
+
+	let agentData = agentStore[user_id];
+	if (!agentData) {
+		const { agentConfig, app } = await initAgent(user_id);
+		agentData = { config: agentConfig, agent: app };
+		agentStore[user_id] = agentData;
+	}
+	const { agent, config } = agentData;
+
+	let state = await agent.getState(config);
+
+	// Send initial placeholder message
+	let sentMessage = await ctx.reply("...");
+	let response = "";
+
+	// Choose stream input based on state
+	let stream;
+	if (state.next.includes("askHuman")) {
+		stream = await agent.stream({ resume: message.text }, config);
+	} else {
+		stream = await agent.stream({
+			messages: [new HumanMessage({ content: message.text, additional_kwargs: { user_id } })]
+		}, config);
+	}
+
+	// Stream and edit message
+	for await (const event of stream) {
+		if (!event.__end__) {
+			const node = Object.keys(event)[0];
+			const recentMsg = event[node].messages[event[node].messages.length - 1] as BaseMessage;
+			response += String(recentMsg.content) + "\n";
+			await ctx.api.editMessageText(
+				ctx.chat.id,
+				sentMessage.message_id,
+				response
+			);
+		}
+	}
+
+	// Optionally, handle post-stream state (e.g., ask for human input)
+	state = await agent.getState(config);
+	if (state.next.includes("askHuman")) {
+		const lastMessage = state.values.messages[state.values.messages.length - 1] as BaseMessage;
+		response = `${lastMessage.content}\nPlease respond with 'approve', 'reject', or 'adjust' (with JSON, e.g., {\"amount\": 500}).`;
+		await ctx.api.editMessageText(
+			ctx.chat.id,
+			sentMessage.message_id,
+			response
+		);
+	}
+}
+
+bot.command("start", async (ctx) => {
+	const { from: user } = ctx;
+	// init agent per user, if no user agent instance (create one)
+	updateUserState(user, {});
+
+	// should get account details
+	const welcomeMsg = `Welcome to Tito, an AI Agent to assist you to manage your recurring payments.`;
+
+	await sendReply(ctx, welcomeMsg, { parse_mode: "Markdown" });
+});
+
+bot.on("message:text", async (ctx) => {
+	await handleAndStreamMessage(ctx);
+});

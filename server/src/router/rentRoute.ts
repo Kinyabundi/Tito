@@ -6,7 +6,7 @@ const rentService = new RentService();
 
 router.get("/monthly-payment", (req, res) => {
 	const payment = rentService.makeMonthlyPayment();
-	res.json(payment);
+	res.send(payment);
 });
 
 router.post("/register", (req, res) => {

@@ -9,6 +9,7 @@
   "dependencies": {
     "@coinbase/agentkit": "^0.8.2",
     "@coinbase/agentkit-langchain": "^0.3.0",
+    "@coinbase/cdp-sdk": "^1.16.0",
     "@langchain/community": "^0.3.46",
     "@langchain/core": "^0.3.59",
     "@langchain/langgraph": "^0.3.4",
