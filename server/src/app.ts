@@ -10,7 +10,7 @@ import { convertToOpenAITool } from "@langchain/core/utils/function_calling";
 import { StateGraph } from "@langchain/langgraph";
 import { Bot, CallbackQueryContext, CommandContext, Context } from "grammy";
 import { rentRegisterTool } from "./tools";
-import { BotCommand, User } from "grammy/types";
+import { User } from "grammy/types";
 
 type TUser = User;
 
@@ -197,9 +197,12 @@ async function handleAndStreamMessage(ctx: Context) {
 	if (state.next.includes("askHuman")) {
 		stream = await agent.stream({ resume: message.text }, config);
 	} else {
-		stream = await agent.stream({
-			messages: [new HumanMessage({ content: message.text, additional_kwargs: { user_id } })]
-		}, config);
+		stream = await agent.stream(
+			{
+				messages: [new HumanMessage({ content: message.text, additional_kwargs: { user_id } })],
+			},
+			config
+		);
 	}
 
 	// Stream and edit message
@@ -208,11 +211,7 @@ async function handleAndStreamMessage(ctx: Context) {
 			const node = Object.keys(event)[0];
 			const recentMsg = event[node].messages[event[node].messages.length - 1] as BaseMessage;
 			response += String(recentMsg.content) + "\n";
-			await ctx.api.editMessageText(
-				ctx.chat.id,
-				sentMessage.message_id,
-				response
-			);
+			await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, response);
 		}
 	}
 
@@ -221,20 +220,18 @@ async function handleAndStreamMessage(ctx: Context) {
 	if (state.next.includes("askHuman")) {
 		const lastMessage = state.values.messages[state.values.messages.length - 1] as BaseMessage;
 		response = `${lastMessage.content}\nPlease respond with 'approve', 'reject', or 'adjust' (with JSON, e.g., {\"amount\": 500}).`;
-		await ctx.api.editMessageText(
-			ctx.chat.id,
-			sentMessage.message_id,
-			response
-		);
+		await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, response);
 	}
 }
 
 bot.command("start", async (ctx) => {
 	const { from: user } = ctx;
 	// init agent per user, if no user agent instance (create one)
+	await initAgent(user.id.toString());
 	updateUserState(user, {});
 
 	// should get account details
+
 	const welcomeMsg = `Welcome to Tito, an AI Agent to assist you to manage your recurring payments.`;
 
 	await sendReply(ctx, welcomeMsg, { parse_mode: "Markdown" });
