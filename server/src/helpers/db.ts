@@ -12,9 +12,9 @@ export interface IUser {
 export interface IRecurringPayment {
 	user_id: string; // Reference to IUser.tg_user_id
 	type: string; // e.g., "rent", "spotify", "netflix"
-	wallet_address: string;
-	wallet_private_key: string;
-	target_wallet_address: string; // Where the payment will be made
+	wallet_address?: string;
+	wallet_private_key?: string;
+	target_wallet_address?: string; // Where the payment will be made
 	due_date: string; // ISO date string
 	amount: number;
 	_id: string;
@@ -49,7 +49,7 @@ export async function getUserByTelegramId(tg_user_id: string): Promise<IUser | n
 }
 
 // RECURRING PAYMENT CRUD
-export async function addRecurringPayment(payment: Omit<IRecurringPayment, "_id">): Promise<IRecurringPayment> {
+export async function addRecurringPayment(payment: Omit<IRecurringPayment, "_id" | "wallet_address" | "wallet_private_key">): Promise<IRecurringPayment> {
 	const newPayment: IRecurringPayment = {
 		...payment,
 		_id: uuidv4(),
@@ -85,8 +85,16 @@ export async function getRecurringPaymentsByUserId(user_id: string): Promise<IRe
 	} catch (err) {
 		// Fallback if find plugin is not available
 		const allDocs = await recurringPaymentDb.allDocs({ include_docs: true });
-		return allDocs.rows
-			.map(row => row.doc as IRecurringPayment)
-			.filter(doc => doc && doc.user_id === user_id);
+		return allDocs.rows.map((row) => row.doc as IRecurringPayment).filter((doc) => doc && doc.user_id === user_id);
+	}
+}
+
+export async function getRecurringPaymentsByUserIdAndType(user_id: string, type: string): Promise<IRecurringPayment[]> {
+	try {
+		const result = await recurringPaymentDb.find({ selector: { user_id, type } });
+		return result.docs as IRecurringPayment[];
+	} catch (err) {
+		const allDocs = await recurringPaymentDb.allDocs({ include_docs: true });
+		return allDocs.rows.map((row) => row.doc as IRecurringPayment).filter((doc) => doc && doc.user_id === user_id && doc.type === type);
 	}
 }
