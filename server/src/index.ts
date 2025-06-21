@@ -5,6 +5,9 @@ import { ADDRESS, APP_PORT, FACILITATOR_URL } from "./constants";
 import { paymentMiddleware, Resource } from "x402-express";
 import { rentRoutes } from "./router/rentRoute";
 import { subscriptionRoutes } from "./router/subscriptionRoute";
+import { DatabaseConfig } from "./config/database.config";
+import DatabaseConnection from "./database/connection";
+import {DatabaseService} from "./services/databaseService";
 
 if (!FACILITATOR_URL || !ADDRESS) {
 	logger.error("Missing required env variables");
@@ -16,6 +19,21 @@ const app = express();
 app.use(express.json());
 
 app.use(morganMiddleware);
+
+async function initializeDatabase() {
+	try {
+		const dbConnection = DatabaseConnection.getInstance();
+		await dbConnection.connect();
+		logger.info("Database connected successfully");
+	} catch (error) {
+		logger.error("Failed to connect to the database", error);
+		process.exit(1);
+	}
+}
+initializeDatabase();
+
+
+
 
 const paymentConfig = {
 	"GET /rent/monthly-payment": {
@@ -71,6 +89,23 @@ app.get("/services", (req, res) => {
 		paymentPeriod: "30 days",
 		acceptedCurrency: "USDC",
 	});
+});
+
+app.post('/create-user', async (req: express.Request, res: express.Response) => {
+	const {username, tg_user_id, primary_wallet_address, primary_wallet_private_key} = req.body;
+	const userRepository = new DatabaseService();
+	try {
+		const user = await userRepository.createUser({
+			username,
+			tg_user_id,
+			primary_wallet_address,
+			primary_wallet_private_key,
+		});
+		res.status(201).json({ success: true, user });
+	} catch (error) {
+		logger.error("Error creating user", error);
+		res.status(500).json({ success: false, msg: "Internal Server Error" });
+	}
 });
 
 app.get(/(.*)/, (req: express.Request, res: express.Response) => {
