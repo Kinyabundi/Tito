@@ -18,6 +18,12 @@ export class UserRepository {
     return await User.findById(new mongoose.Types.ObjectId(id)).exec();
   }
 
+   async findByWalletAddress(primary_wallet_address: string): Promise<IUser | null> {
+    return await User.findOne({
+			primary_wallet_address: { $regex: `^${primary_wallet_address}$`, $options: "i" },
+		});
+  }
+
   async updateUser(id: string, updates: Partial<IUser>): Promise<IUser | null> {
     return await User.findByIdAndUpdate(
       new mongoose.Types.ObjectId(id),

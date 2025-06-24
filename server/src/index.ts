@@ -1,5 +1,6 @@
 import  express from "express";
 import { morganMiddleware } from "./middleware/morgan.middleware";
+import { CDP_API_KEY, CDP_API_KEY_SECRET } from "./constants";
 import { logger } from "./logger/winston";
 import { ADDRESS, APP_PORT, FACILITATOR_URL } from "./constants";
 import { paymentMiddleware, Resource } from "x402-express";
@@ -7,7 +8,12 @@ import { rentRoutes } from "./router/rentRoute";
 import { subscriptionRoutes } from "./router/subscriptionRoute";
 import { DatabaseConfig } from "./config/database.config";
 import DatabaseConnection from "./database/connection";
-import {DatabaseService} from "./services/databaseService";
+import {UserService} from "./services/userService";
+import { userRoutes } from "./router/userRoute";
+import { Coinbase } from "@coinbase/coinbase-sdk";
+
+
+Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
 
 if (!FACILITATOR_URL || !ADDRESS) {
 	logger.error("Missing required env variables");
@@ -51,10 +57,10 @@ const paymentConfig = {
 		network: "base-sepolia" as const,
 	},
 
-	"POST /*/register": {
-		price: "$0", // Registration is free
-		network: "base-sepolia" as const,
-	},
+	// "POST /*/register": {
+	// 	price: "$0", // Registration is free
+	// 	network: "base-sepolia" as const,
+	// },
 };
 
 app.get("/", (req: express.Request, res: express.Response) => {
@@ -70,6 +76,7 @@ app.use(
 );
 
 app.use("/rent", rentRoutes);
+app.use("/user", userRoutes);
 app.use("/subscriptions", subscriptionRoutes);
 app.get("/health", (req, res) => {
 	res.json({
@@ -93,10 +100,9 @@ app.get("/services", (req, res) => {
 
 app.post('/create-user', async (req: express.Request, res: express.Response) => {
 	const {username, tg_user_id, primary_wallet_address, primary_wallet_private_key} = req.body;
-	const userRepository = new DatabaseService();
+	const userRepository = new UserService();
 	try {
 		const user = await userRepository.createUser({
-			username,
 			tg_user_id,
 			primary_wallet_address,
 			primary_wallet_private_key,

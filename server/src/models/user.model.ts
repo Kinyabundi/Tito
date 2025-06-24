@@ -8,11 +8,6 @@ const UserSchema = new Schema(
       type: Schema.Types.ObjectId,
       default: () => new mongoose.Types.ObjectId(),
     },
-    username: {
-      type: String,
-      required: true,
-      index: true,
-    },
     tg_user_id: {
       type: String,
       required: true,
