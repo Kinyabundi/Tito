@@ -24,11 +24,6 @@ export class ServiceManagementService {
 			currency: string;
 			billing_cycle: "daily" | "weekly" | "monthly" | "yearly";
 		};
-		x402_config: {
-			price: string;
-			network: string;
-			endpoint: string;
-		};
 		status?: "active" | "inactive";
 		features?: string[];
 		trial_period_days?: number;
@@ -39,12 +34,6 @@ export class ServiceManagementService {
 			const provider = await this.serviceProviderRepository.findById(serviceData.provider_id);
 			if (!provider) {
 				throw new Error("Service provider not found");
-			}
-
-			// Check if endpoint already exists
-			const existingService = await this.serviceRepository.findByEndpoint(serviceData.x402_config.endpoint);
-			if (existingService) {
-				throw new Error("Service with this endpoint already exists");
 			}
 
 			const service = await this.serviceRepository.create(serviceData);
@@ -90,19 +79,5 @@ export class ServiceManagementService {
 
 	async getActiveServices(): Promise<IService[]> {
 		return await this.serviceRepository.findActiveServices();
-	}
-
-	async generateX402Config(serviceId: string): Promise<any> {
-		const service = await this.serviceRepository.findById(serviceId);
-		if (!service) {
-			throw new Error("Service not found");
-		}
-
-		return {
-			[service.x402_config.endpoint]: {
-				price: service.x402_config.price,
-				network: service.x402_config.network,
-			},
-		};
 	}
 }

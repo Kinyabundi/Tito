@@ -15,7 +15,7 @@ export class ServiceProviderRepository {
   }
 
   async findByWalletAddress(walletAddress: string): Promise<IServiceProvider | null> {
-    return await ServiceProvider.findOne({ wallet_address: walletAddress }).exec();
+    return await ServiceProvider.findOne({ 	wallet_address: { $regex: `^${walletAddress}$`, $options: "i" }}).exec();
   }
 
   async updateProvider(id: string, updates: Partial<IServiceProvider>): Promise<IServiceProvider | null> {

@@ -83,6 +83,7 @@ const SubscriptionSchema = new Schema(
       failure_reason: {
         type: String,
       },
+      
     }],
     metadata: {
       type: Map,

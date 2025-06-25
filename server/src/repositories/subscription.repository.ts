@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Subscription, ISubscription } from '../models/subscription.model';
 
 export class SubscriptionRepository {
-  async create(subscriptionData: Omit<ISubscription, '_id' | 'createdAt' | 'updatedAt'| 'payment_history'>): Promise<ISubscription> {
+  async create(subscriptionData: Omit<ISubscription, '_id' | 'createdAt' | 'updatedAt' | 'payment_history'>): Promise<ISubscription> {
     const subscription = new Subscription({
       _id: new mongoose.Types.ObjectId(),
       ...subscriptionData,

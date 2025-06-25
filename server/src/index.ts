@@ -4,11 +4,10 @@ import { CDP_API_KEY, CDP_API_KEY_SECRET } from "./constants";
 import { logger } from "./logger/winston";
 import { ADDRESS, APP_PORT, FACILITATOR_URL } from "./constants";
 import { paymentMiddleware, Resource } from "x402-express";
-import { rentRoutes } from "./router/rentRoute";
-import { subscriptionRoutes } from "./router/subscriptionRoute";
 import DatabaseConnection from "./database/connection";
 import { userRoutes } from "./router/userRoute";
 import { Coinbase } from "@coinbase/coinbase-sdk";
+import { serviceProviderRoutes } from "./router/serviceProviderRoute";
 
 
 Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
@@ -73,9 +72,8 @@ app.use(
 	})
 );
 
-app.use("/rent", rentRoutes);
 app.use("/users", userRoutes);
-app.use("/subscriptions", subscriptionRoutes);
+app.use("/service-providers", serviceProviderRoutes);
 app.get("/health", (req, res) => {
 	res.json({
 		status: "healthy",

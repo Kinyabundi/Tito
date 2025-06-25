@@ -6,11 +6,11 @@ const ServiceSchema = new Schema(
 			type: Schema.Types.ObjectId,
 			default: () => new mongoose.Types.ObjectId(),
 		},
-		provider_id: {
-			ref: "ServiceProvider",
-			required: true,
-			index: true,
-		},
+		// provider_id: {
+		// 	ref: "ServiceProvider",
+		// 	required: true,
+		// 	index: true,
+		// },
 		name: {
 			type: String,
 			required: true,
@@ -20,7 +20,6 @@ const ServiceSchema = new Schema(
 			type: String,
 			trim: true,
 		},
-
 		pricing: {
 			amount: {
 				type: Number,
@@ -32,21 +31,6 @@ const ServiceSchema = new Schema(
 				enum: ["daily", "weekly", "monthly", "yearly"],
 				required: true,
 				default: "monthly",
-			},
-		},
-		x402_config: {
-			price: {
-				type: String,
-				required: true, // e.g., "$9.99"
-			},
-			network: {
-				type: String,
-				required: true,
-				default: "base-sepolia",
-			},
-			endpoint: {
-				type: String,
-				required: true, // e.g., "/subscription/netflix/monthly"
 			},
 		},
 		features: [

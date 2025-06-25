@@ -1,11 +1,10 @@
-// src/services/subscriptionManagementService.ts - Final Fixed Version
-import { SubscriptionRepository } from "../repositories/subscription.repository";
-import { PaymentTransactionRepository } from "../repositories/payment-transaction.repository";
-import { ServiceRepository } from "../repositories/service.repository";
-import { ISubscription } from "../models/subscription.model";
-import { IPaymentTransaction } from "../models/payment-transaction.model";
-import { logger } from "../logger/winston";
-import mongoose from "mongoose";
+import { SubscriptionRepository } from '../repositories/subscription.repository';
+import { PaymentTransactionRepository } from '../repositories/payment-transaction.repository';
+import { ServiceRepository } from '../repositories/service.repository';
+import { ISubscription } from '../models/subscription.model';
+import { IPaymentTransaction } from '../models/payment-transaction.model';
+import { logger } from '../logger/winston';
+import mongoose from 'mongoose';
 
 export class SubscriptionManagementService {
 	private subscriptionRepository: SubscriptionRepository;
@@ -72,20 +71,19 @@ export class SubscriptionManagementService {
 				}
 			}
 
-			// Create subscription data without payment_history (let Mongoose handle initialization)
-			const subscriptionCreateData = {
-				user_id: subscriptionData.user_id,
-				service_id: new mongoose.Types.ObjectId(service._id.toString()),
-				provider_id: new mongoose.Types.ObjectId(service.provider_id.toString()),
-				status: isTrialPeriod ? ("trial" as "trial") : ("active" as "active"),
-				start_date: startDate,
-				end_date: endDate,
-				next_billing_date: nextBillingDate,
-				amount_paid: subscriptionData.payment_amount,
-				trial_end_date: trialEndDate,
-				auto_renew: true,
-				payment_history: [],
-			};
+      // Create subscription data without payment_history (let Mongoose handle initialization)
+      const subscriptionCreateData = {
+        user_id: subscriptionData.user_id,
+        service_id: new mongoose.Types.ObjectId(service._id.toString()),
+        provider_id: new mongoose.Types.ObjectId(service.provider_id.toString()),
+        status: isTrialPeriod ? 'trial' as 'trial' : 'active' as 'active',
+        start_date: startDate,
+        end_date: endDate,
+        next_billing_date: nextBillingDate,
+        amount_paid: subscriptionData.payment_amount,
+        trial_end_date: trialEndDate,
+        auto_renew: true,
+      };
 
 			const subscription = await this.subscriptionRepository.create(subscriptionCreateData);
 
