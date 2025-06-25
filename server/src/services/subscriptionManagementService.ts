@@ -90,9 +90,6 @@ export class SubscriptionManagementService {
 			// Record the initial payment transaction (X402 payment)
 			await this.paymentTransactionRepository.create({
 				subscription_id: new mongoose.Types.ObjectId(subscription._id.toString()),
-				user_id: subscriptionData.user_id,
-				service_id: new mongoose.Types.ObjectId(service._id.toString()),
-				provider_id: new mongoose.Types.ObjectId(service.provider_id.toString()),
 				amount: subscriptionData.payment_amount,
 				status: "completed",
 				payment_method: "x402",
@@ -173,9 +170,6 @@ export class SubscriptionManagementService {
 			// Record payment transaction
 			await this.paymentTransactionRepository.create({
 				subscription_id: new mongoose.Types.ObjectId(subscription._id.toString()),
-				user_id: subscription.user_id,
-				service_id: new mongoose.Types.ObjectId(subscription.service_id.toString()),
-				provider_id: new mongoose.Types.ObjectId(subscription.provider_id.toString()),
 				amount: paymentAmount,
 				status: "completed",
 				payment_method: "x402",

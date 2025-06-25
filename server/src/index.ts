@@ -1,4 +1,4 @@
-import  express from "express";
+import express from "express";
 import { morganMiddleware } from "./middleware/morgan.middleware";
 import { CDP_API_KEY, CDP_API_KEY_SECRET } from "./constants";
 import { logger } from "./logger/winston";
@@ -8,7 +8,7 @@ import DatabaseConnection from "./database/connection";
 import { userRoutes } from "./router/userRoute";
 import { Coinbase } from "@coinbase/coinbase-sdk";
 import { serviceProviderRoutes } from "./router/serviceProviderRoute";
-
+import { serviceRoutes } from "./router/serviceRoute";
 
 Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
 
@@ -34,9 +34,6 @@ async function initializeDatabase() {
 	}
 }
 initializeDatabase();
-
-
-
 
 const paymentConfig = {
 	"GET /rent/monthly-payment": {
@@ -74,6 +71,7 @@ app.use(
 
 app.use("/users", userRoutes);
 app.use("/service-providers", serviceProviderRoutes);
+app.use("/services-k", serviceRoutes);
 app.get("/health", (req, res) => {
 	res.json({
 		status: "healthy",

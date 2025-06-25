@@ -1,23 +1,23 @@
 import { Router } from "express";
-import { ServiceProviderService } from "src/services/serviceProviderService";
+import { ServiceManagementService } from "src/services/serviceManagementService";
 
 const router = Router();
-const serviceProviderService = new ServiceProviderService();
+const serviceMngr = new ServiceManagementService();
 
-router.post("/newService", async (req, res) => {
-    try {
-        const providerData = req.body;
-        const newProvider = await serviceProviderService.createProvider(providerData);
-        res.status(201).json({
-            status: "success",
-            data: newProvider,
-        });
-    } catch (error) {
-        res.status(500).json({
-            status: "error",
-            error: error.message,
-        });
-    }
+router.post("/new", async (req, res) => {
+	try {
+		const providerData = req.body;
+		const newService = await serviceMngr.createService(providerData);
+		res.status(201).json({
+			status: "success",
+			data: newService,
+		});
+	} catch (error) {
+		res.status(500).json({
+			status: "error",
+			error: error.message,
+		});
+	}
 });
 
-export { router as serviceProviderRoutes };
+export { router as serviceRoutes };
