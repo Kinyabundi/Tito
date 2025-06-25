@@ -12,6 +12,8 @@ import { Bot, CallbackQueryContext, CommandContext, Context } from "grammy";
 import { User } from "grammy/types";
 import { botSetupUserAccount, getAccountByTelegramID } from "./bot-actions";
 import { fetchAllServiceProvidersTool, fetchServicesByProviderNameTool } from "./tools";
+import DatabaseConnection from "./database/connection";
+import { logger } from "./logger/winston";
 
 type TUser = User;
 
@@ -22,6 +24,18 @@ const userStates: TUserState = {};
 type TQ = CallbackQueryContext<Context>;
 
 Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
+
+async function initializeDatabase() {
+	try {
+		const dbConnection = DatabaseConnection.getInstance();
+		await dbConnection.connect();
+		logger.info("Database connected successfully");
+	} catch (error) {
+		logger.error("Failed to connect to the database", error);
+		process.exit(1);
+	}
+}
+initializeDatabase();
 
 const updateUserState = (user: TUser, state: any) => {
 	userStates[user.id] = { ...userStates[user.id], ...state };
@@ -216,9 +230,16 @@ async function handleAndStreamMessage(ctx: Context) {
 	for await (const event of stream) {
 		if (!event.__end__) {
 			const node = Object.keys(event)[0];
-			const recentMsg = event[node].messages[event[node].messages.length - 1] as BaseMessage;
-			response += String(recentMsg.content) + "\n";
-			await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, response);
+			const messages = event[node].messages;
+			if (messages && messages.length > 0) {
+				const recentMsg = messages[messages.length - 1] as BaseMessage;
+				const content = String(recentMsg.content).trim();
+				if (content) {
+					response += content + "\n";
+					console.log("response", response);
+					await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, response);
+				}
+			}
 		}
 	}
 

@@ -66,13 +66,22 @@ export class ServiceRepository {
   }
 
   async searchByProviderAndQuery(providerId: string, query: string): Promise<IService[]> {
-    return await Service.find({
+    console.log('providerId', providerId);
+    const filter: any = {
       provider_id: new mongoose.Types.ObjectId(providerId),
-      $text: { $search: query },
       status: 'active',
-    }, { score: { $meta: "textScore" } })
-      .sort({ score: { $meta: "textScore" } })
-      .populate('provider_id')
-      .exec();
+    };
+    if (query && query.trim()) {
+      filter.$text = { $search: query };
+      return await Service.find(filter, { score: { $meta: "textScore" } })
+        .sort({ score: { $meta: "textScore" } })
+        .populate('provider_id')
+        .exec();
+    } else {
+      // No text search, just return all services for the provider
+      return await Service.find(filter)
+        .populate('provider_id')
+        .exec();
+    }
   }
 }

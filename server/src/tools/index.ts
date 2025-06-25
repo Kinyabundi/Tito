@@ -6,7 +6,7 @@ import { ServiceProviderService } from "src/services/serviceProviderService";
 import { ServiceManagementService } from "src/services/serviceManagementService";
 
 export const fetchAllServiceProvidersTool = tool(
-	async (_args, config: RunnableConfig) => {
+	async ({}, config: RunnableConfig) => {
 		const service = new ServiceProviderService();
 		const { providers, total } = await service.getAllProviders(1, 1000);
 		if (!providers.length) {
@@ -16,6 +16,7 @@ export const fetchAllServiceProvidersTool = tool(
 		providers.forEach((provider) => {
 			response += `- ${provider.name || "N/A"}\n`;
 		});
+		console.log(response)
 		return response;
 	},
 	{
