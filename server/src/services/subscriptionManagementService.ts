@@ -1,7 +1,7 @@
-import { SubscriptionRepository } from '../repositories/subscription.repository';
-import { ISubscription, SubscriptionStatus } from '../models/subscription.model';
-import { logger } from '../logger/winston';
-import mongoose from 'mongoose';
+import { SubscriptionRepository } from "../repositories/subscription.repository";
+import { ISubscription, SubscriptionStatus } from "../models/subscription.model";
+import { logger } from "../logger/winston";
+import mongoose from "mongoose";
 
 export class SubscriptionManagementService {
 	private subscriptionRepository: SubscriptionRepository;
@@ -10,16 +10,15 @@ export class SubscriptionManagementService {
 		this.subscriptionRepository = new SubscriptionRepository();
 	}
 
-	async createSubscription(subscriptionData : {userId: string, serviceId: string}): Promise<ISubscription> {
-
+	async createSubscription(subscriptionData: { userId: string; serviceId: string }): Promise<ISubscription> {
 		const start_date = new Date();
 
 		const subscription_data = {
 			user_id: new mongoose.Types.ObjectId(subscriptionData.userId),
 			service_id: new mongoose.Types.ObjectId(subscriptionData.serviceId),
-			status: SubscriptionStatus.INACTIVE,
+			status: SubscriptionStatus.PENDING,
 			start_date: start_date,
-			auto_renew: true, 
+			auto_renew: true,
 		};
 
 		return await this.subscriptionRepository.create(subscription_data);
@@ -44,8 +43,4 @@ export class SubscriptionManagementService {
 		}
 		return subscription;
 	}
-
-
-
-
 }

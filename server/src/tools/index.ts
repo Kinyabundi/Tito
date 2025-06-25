@@ -4,6 +4,8 @@ import { z } from "zod";
 import { createCDPAccount } from "src/helpers/cdp";
 import { ServiceProviderService } from "src/services/serviceProviderService";
 import { ServiceManagementService } from "src/services/serviceManagementService";
+import { SubscriptionManagementService } from "src/services/subscriptionManagementService";
+import { UserService } from "src/services/userService";
 
 export const fetchAllServiceProvidersTool = tool(
 	async ({}, config: RunnableConfig) => {
@@ -55,6 +57,56 @@ export const fetchServicesByProviderNameTool = tool(
 		schema: z.object({
 			providerName: z.string().describe("The name of the service provider, e.g., 'Netflix'."),
 			query: z.string().optional().describe("Text to search for in the service name/description."),
+		}),
+	}
+);
+
+export const setupServiceSubscriptionTool = tool(
+	async ({ providerName, serviceName }, config: RunnableConfig) => {
+		// 1. Get userTelegramId from config if not provided
+		let userTelegramId = config['configurable']['user_id']
+		if (!userTelegramId) {
+			return "Missing user Telegram ID. Please provide your Telegram user ID.";
+		}
+		// 2. Preload user info
+		const userService = new UserService();
+		const user = await userService.getUserByTelegramId(userTelegramId);
+		if (!user) {
+			return `No user found for Telegram ID '${userTelegramId}'. Please register first.`;
+		}
+		// 3. Check providerName
+		if (!providerName) {
+			return "Missing provider name. Please specify the service provider (e.g., 'Netflix').";
+		}
+		// 4. Find provider
+		const providerService = new ServiceProviderService();
+		const providers = await providerService.searchProvidersByName(providerName);
+		if (!providers.length) {
+			return `No provider found matching '${providerName}'. Please check the provider name.`;
+		}
+		const provider = providers[0];
+		// 5. Check serviceName
+		if (!serviceName) {
+			return `Missing service name. Please specify the service you want to subscribe to from '${provider.name}'.`;
+		}
+		// 6. Find service for provider
+		const serviceMngr = new ServiceManagementService();
+		const services = await serviceMngr.searchServicesByProviderName(provider.name, serviceName);
+		if (!services.length) {
+			return `No service found matching '${serviceName}' for provider '${provider.name}'.`;
+		}
+		const service = services[0];
+		// 7. Create subscription
+		const subMngr = new SubscriptionManagementService();
+		const subscription = await subMngr.createSubscription({ userId: (user as any)._id.toString(), serviceId: (service as any)._id.toString() });
+		return `Subscription created!\n- User: ${user.tg_user_id}\n- Provider: ${provider.name}\n- Service: ${service.name}\n- Status: ${subscription.status}`;
+	},
+	{
+		name: "setupServiceSubscriptionTool",
+		description: "Sets up a subscription for a service. Requires provider name, service name, and user Telegram ID (from config or input). Preloads user info and validates all data.",
+		schema: z.object({
+			providerName: z.string().describe("The name of the service provider, e.g., 'Netflix'."),
+			serviceName: z.string().describe("The name of the service to subscribe to, e.g., 'Premium Plan'."),
 		}),
 	}
 );

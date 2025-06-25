@@ -2,6 +2,7 @@ import { required } from "joi";
 import mongoose, { Schema, InferSchemaType } from "mongoose";
 
 export enum SubscriptionStatus {
+	PENDING='pending',
 	ACTIVE = "active",
 	EXPIRED = "expired",
 	CANCELLED = "cancelled",
