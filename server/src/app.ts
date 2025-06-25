@@ -1,5 +1,5 @@
 import { Coinbase, Wallet } from "@coinbase/coinbase-sdk";
-import { CDP_API_KEY, CDP_API_KEY_PRIVATE_KEY, NETWORK_ID, OPENAI_API_KEY, TELEGRAM_BOT_TOKEN, WALLET_MNEMONIC_PHRASE } from "./constants";
+import { CDP_API_KEY, CDP_API_KEY_PRIVATE_KEY, CDP_API_KEY_SECRET, NETWORK_ID, OPENAI_API_KEY, TELEGRAM_BOT_TOKEN, WALLET_MNEMONIC_PHRASE } from "./constants";
 import { END, MemorySaver, MessagesAnnotation, START } from "@langchain/langgraph";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
@@ -20,7 +20,7 @@ const userStates: TUserState = {};
 
 type TQ = CallbackQueryContext<Context>;
 
-Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_PRIVATE_KEY.replace(/\\n/g, "\n") });
+Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
 
 const updateUserState = (user: TUser, state: any) => {
 	userStates[user.id] = { ...userStates[user.id], ...state };

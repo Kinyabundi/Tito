@@ -6,7 +6,6 @@ import { ADDRESS, APP_PORT, FACILITATOR_URL } from "./constants";
 import { paymentMiddleware, Resource } from "x402-express";
 import { rentRoutes } from "./router/rentRoute";
 import { subscriptionRoutes } from "./router/subscriptionRoute";
-import { DatabaseConfig } from "./config/database.config";
 import DatabaseConnection from "./database/connection";
 import {UserService} from "./services/userService";
 import { userRoutes } from "./router/userRoute";
