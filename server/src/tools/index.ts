@@ -1,15 +1,14 @@
 import { tool } from "@langchain/core/tools";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { z } from "zod";
-import { RentService } from "src/services/rentService";
 import { addRecurringPayment, updateRecurringPayment } from "src/helpers/db";
 import { createCDPAccount } from "src/helpers/cdp";
 
 export const rentRegisterTool = tool(
 	async ({ amount }, config: RunnableConfig) => {
 		const user_id = config["configurable"]["user_id"];
-		const rentService = new RentService();
-		rentService.register();
+		// const rentService = new RentService();
+		// rentService.register();
 
 		return `Rent Registration completed successfully`;
 	},

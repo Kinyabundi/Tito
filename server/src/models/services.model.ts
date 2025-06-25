@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema, InferSchemaType } from "mongoose";
+import mongoose, { Schema, InferSchemaType } from "mongoose";
 
 const ServiceSchema = new Schema(
 	{
@@ -6,11 +6,12 @@ const ServiceSchema = new Schema(
 			type: Schema.Types.ObjectId,
 			default: () => new mongoose.Types.ObjectId(),
 		},
-		// provider_id: {
-		// 	ref: "ServiceProvider",
-		// 	required: true,
-		// 	index: true,
-		// },
+		provider_id: {
+			ref: "ServiceProvider",
+			required: true,
+			index: true,
+			type: Schema.Types.ObjectId,
+		},
 		name: {
 			type: String,
 			required: true,

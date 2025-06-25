@@ -4,7 +4,7 @@ import { ServiceProviderService } from "src/services/serviceProviderService";
 const router = Router();
 const serviceProviderService = new ServiceProviderService();
 
-router.post("/newProvider", async (req, res) => {
+router.post("/new-provider", async (req, res) => {
     try {
         const providerData = req.body;
         const newProvider = await serviceProviderService.createProvider(providerData);
