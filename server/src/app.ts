@@ -225,6 +225,7 @@ async function handleAndStreamMessage(ctx: Context) {
 }
 
 bot.command("start", async (ctx) => {
+	console.log('here')
 	const { from: user } = ctx;
 	// init agent per user, if no user agent instance (create one)
 	await initAgent(user.id.toString());
@@ -240,3 +241,5 @@ bot.command("start", async (ctx) => {
 bot.on("message:text", async (ctx) => {
 	await handleAndStreamMessage(ctx);
 });
+
+bot.start()

@@ -1,2 +1,4 @@
 node_modules
 .env
+tito_users
+tito_recurring_payments
