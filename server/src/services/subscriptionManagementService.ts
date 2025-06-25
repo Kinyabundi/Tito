@@ -1,8 +1,5 @@
 import { SubscriptionRepository } from '../repositories/subscription.repository';
-import { PaymentTransactionRepository } from '../repositories/payment-transaction.repository';
-import { ServiceRepository } from '../repositories/service.repository';
 import { ISubscription, SubscriptionStatus } from '../models/subscription.model';
-import { IPaymentTransaction } from '../models/payment-transaction.model';
 import { logger } from '../logger/winston';
 import mongoose from 'mongoose';
 
@@ -13,19 +10,19 @@ export class SubscriptionManagementService {
 		this.subscriptionRepository = new SubscriptionRepository();
 	}
 
-	async createSubscription(userId: string, serviceId: string): Promise<ISubscription> {
+	async createSubscription(subscriptionData : {userId: string, serviceId: string}): Promise<ISubscription> {
 
 		const start_date = new Date();
 
-		const subscriptionData = {
-			user_id: userId,
-			service_id: new mongoose.Types.ObjectId(serviceId),
+		const subscription_data = {
+			user_id: new mongoose.Types.ObjectId(subscriptionData.userId),
+			service_id: new mongoose.Types.ObjectId(subscriptionData.serviceId),
 			status: SubscriptionStatus.INACTIVE,
 			start_date: start_date,
 			auto_renew: true, 
 		};
 
-		return await this.subscriptionRepository.create(subscriptionData);
+		return await this.subscriptionRepository.create(subscription_data);
 	}
 
 	async getSubscriptionById(subscriptionId: string): Promise<ISubscription | null> {

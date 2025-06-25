@@ -21,7 +21,6 @@ export class ServiceManagementService {
 		description?: string;
 		pricing: {
 			amount: number;
-			currency: string;
 			billing_cycle: "daily" | "weekly" | "monthly" | "yearly";
 		};
 		status?: "active" | "inactive";

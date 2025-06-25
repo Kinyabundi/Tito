@@ -23,7 +23,7 @@ const SubscriptionSchema = new Schema(
 			default: () => new mongoose.Types.ObjectId(),
 		},
 		user_id: {
-			type: String, 
+			type: Schema.Types.ObjectId, 
 			ref: "User",
 			required: true,
 			index: true,

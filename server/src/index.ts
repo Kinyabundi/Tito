@@ -9,6 +9,7 @@ import { userRoutes } from "./router/userRoute";
 import { Coinbase } from "@coinbase/coinbase-sdk";
 import { serviceProviderRoutes } from "./router/serviceProviderRoute";
 import { serviceRoutes } from "./router/serviceRoute";
+import { subscriptionRoutes } from "./router/subscriptionRoute";
 
 Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
 
@@ -72,6 +73,7 @@ app.use(
 app.use("/users", userRoutes);
 app.use("/service-providers", serviceProviderRoutes);
 app.use("/services-k", serviceRoutes);
+app.use("/subscriptions", subscriptionRoutes);
 app.get("/health", (req, res) => {
 	res.json({
 		status: "healthy",
