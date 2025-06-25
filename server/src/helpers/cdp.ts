@@ -1,5 +1,9 @@
 import { CdpClient } from "@coinbase/cdp-sdk";
 
+import dotenv from "dotenv";
+
+dotenv.config();
+
 export async function createCDPAccount(name: string) {
 	const cdp = new CdpClient();
 

@@ -11,6 +11,7 @@ import { StateGraph } from "@langchain/langgraph";
 import { Bot, CallbackQueryContext, CommandContext, Context } from "grammy";
 import { rentRegisterTool } from "./tools";
 import { User } from "grammy/types";
+import { botSetupUserAccount, getAccountByTelegramID } from "./bot-actions";
 
 type TUser = User;
 
@@ -86,6 +87,12 @@ function shouldContinue(state: typeof MessagesAnnotation.State): "action" | "ask
 
 async function initAgent(user_id: string) {
 	try {
+		// confirm if user account setup
+		const userAccount = await getAccountByTelegramID(user_id);
+		if (!userAccount) {
+			// trigger create account
+			await botSetupUserAccount(user_id);
+		}
 		const llm = new ChatOpenAI({
 			model: "gpt-4o",
 			apiKey: OPENAI_API_KEY,
@@ -225,7 +232,7 @@ async function handleAndStreamMessage(ctx: Context) {
 }
 
 bot.command("start", async (ctx) => {
-	console.log('here')
+	console.log("here");
 	const { from: user } = ctx;
 	// init agent per user, if no user agent instance (create one)
 	await initAgent(user.id.toString());
@@ -242,4 +249,4 @@ bot.on("message:text", async (ctx) => {
 	await handleAndStreamMessage(ctx);
 });
 
-bot.start()
+bot.start();

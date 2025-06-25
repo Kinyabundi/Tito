@@ -74,7 +74,7 @@ app.use(
 );
 
 app.use("/rent", rentRoutes);
-app.use("/user", userRoutes);
+app.use("/users", userRoutes);
 app.use("/subscriptions", subscriptionRoutes);
 app.get("/health", (req, res) => {
 	res.json({

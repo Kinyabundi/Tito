@@ -10,14 +10,25 @@ export class UserService {
 	}
 
 	// User methods
-	async createUser(userData: { tg_user_id: string; primary_wallet_address: string; primary_wallet_private_key: string }): Promise<IUser> {
+	async createUser(userData: { tg_user_id: string }): Promise<IUser> {
 		try {
+			// check if user exists
+			const userExists = await this.getUserByTelegramId(userData.tg_user_id);
+
+			if (userExists) {
+				// dont recreate, just return the existing account
+				return userExists;
+			}
+
 			const account = await createCDPAccount(userData.tg_user_id);
 
-			userData.primary_wallet_address = account.account.address;
-			userData.primary_wallet_private_key = account.privateKey;
+			let info = {
+				...userData,
+				primary_wallet_address: account.account.address,
+				primary_wallet_private_key: account.privateKey,
+			};
 
-			return await this.userRepository.create(userData);
+			return await this.userRepository.create(info);
 		} catch (error) {
 			console.error("Error creating user:", error);
 			throw new Error(`Failed to create user: ${error.message}`);

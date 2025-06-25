@@ -24,12 +24,7 @@ router.get("/get/by-telegram/:tg_user_id", async (req, res) => {
 	try {
 		const { tg_user_id } = req.params;
 		const user = await userService.getUserByTelegramId(tg_user_id);
-		if (!user) {
-			res.status(404).json({
-				status: "error",
-				message: "User not found",
-			});
-		}
+
 		res.json({
 			status: "success",
 			data: user,

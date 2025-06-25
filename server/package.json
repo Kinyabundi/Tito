@@ -4,7 +4,8 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "dev": "bun --watch src/index.ts"
+    "dev": "bun --watch src/index.ts",
+    "bot:dev": "bun --watch src/app.ts"
   },
   "dependencies": {
     "@coinbase/agentkit": "^0.8.2",
