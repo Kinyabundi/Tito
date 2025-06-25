@@ -39,5 +39,11 @@ export class ServiceProviderRepository {
     ]);
     return { providers, total };
   }
+
+  async searchByName(name: string): Promise<IServiceProvider[]> {
+    return await ServiceProvider.find({ $text: { $search: name } }, { score: { $meta: "textScore" } })
+      .sort({ score: { $meta: "textScore" } })
+      .exec();
+  }
 }
 

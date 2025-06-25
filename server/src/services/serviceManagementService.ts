@@ -80,4 +80,12 @@ export class ServiceManagementService {
 	async getActiveServices(): Promise<IService[]> {
 		return await this.serviceRepository.findActiveServices();
 	}
+
+	async searchServicesByProviderName(providerName: string, query: string): Promise<IService[]> {
+		const providers = await this.serviceProviderRepository.searchByName(providerName);
+		if (!providers.length) return [];
+		// Use the top scoring provider
+		const provider = providers[0];
+		return await this.serviceRepository.searchByProviderAndQuery(provider._id.toString(), query);
+	}
 }

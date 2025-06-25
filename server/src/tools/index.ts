@@ -1,59 +1,59 @@
 import { tool } from "@langchain/core/tools";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { z } from "zod";
-import { addRecurringPayment, updateRecurringPayment } from "src/helpers/db";
 import { createCDPAccount } from "src/helpers/cdp";
+import { ServiceProviderService } from "src/services/serviceProviderService";
+import { ServiceManagementService } from "src/services/serviceManagementService";
 
-export const rentRegisterTool = tool(
-	async ({ amount }, config: RunnableConfig) => {
-		const user_id = config["configurable"]["user_id"];
-		// const rentService = new RentService();
-		// rentService.register();
-
-		return `Rent Registration completed successfully`;
+export const fetchAllServiceProvidersTool = tool(
+	async (_args, config: RunnableConfig) => {
+		const service = new ServiceProviderService();
+		const { providers, total } = await service.getAllProviders(1, 1000);
+		if (!providers.length) {
+			return "No service providers found.";
+		}
+		let response = `Service Providers (${total} total):\n`;
+		providers.forEach((provider) => {
+			response += `- ${provider.name || "N/A"}\n`;
+		});
+		return response;
 	},
 	{
-		name: "rentRegistrationTool",
-		description: "Registers a new rent service with amount",
-		schema: z.object({ amount: z.number().positive().describe("Rent amount in USD") }),
+		name: "fetchAllServiceProvidersTool",
+		description: "Fetches and lists the names of all available service providers for Tito AI agent. No pagination.",
+		schema: z.object({}),
 	}
 );
 
-export const setupRecurringPaymentTool = tool(
-	async ({ type, amount, due_date, target_wallet_address }, config: RunnableConfig) => {
-		const user_id = config["configurable"]["user_id"];
-		const paymentItem = await addRecurringPayment({
-			user_id,
-			type,
-			amount,
-			due_date,
-			target_wallet_address,
+export const fetchServicesByProviderNameTool = tool(
+	async ({ providerName, query }, config: RunnableConfig) => {
+		const serviceMngr = new ServiceManagementService();
+		const services = await serviceMngr.searchServicesByProviderName(providerName, query || "");
+		if (!services.length) {
+			return `No services found for provider '${providerName}' with query '${query || ""}'.`;
+		}
+		let response = `Services offered by '${providerName}' matching '${query || "all"}':\n`;
+		services.forEach((service, idx) => {
+			response += `#${idx + 1}: ${service.name}\n`;
+			if (service.description) response += `  Description: ${service.description}\n`;
+			if (service.pricing) {
+				response += `  Pricing: $${service.pricing.amount} per ${service.pricing.billing_cycle}\n`;
+			}
+			if (service.trial_period_days && service.trial_period_days > 0) {
+				response += `  Trial: Yes (${service.trial_period_days} days)\n`;
+			} else {
+				response += `  Trial: No\n`;
+			}
+			response += `-----------------------------\n`;
 		});
-
-		const { account: recurringAccount, privateKey } = await createCDPAccount(paymentItem._id);
-
-		const wallet_address = recurringAccount.address.toString();
-		const wallet_private_key = privateKey;
-
-		let updatedPayment = {
-			...paymentItem,
-			wallet_address,
-			wallet_private_key,
-		};
-
-		// update db
-		await updateRecurringPayment(updatedPayment);
-
-		return `Recurring payment for '${type}' set up successfully.`;
+		return response;
 	},
 	{
-		name: "setupRecurringPayment",
-		description: "Sets up a new recurring payment for a user (e.g., rent, Netflix, Spotify, etc.)",
+		name: "fetchServicesByProviderNameTool",
+		description: "Fetches services offered by a given service provider (by name, natural language). Optionally filter by service name/description. Returns detailed info including pricing, billing, and trial.",
 		schema: z.object({
-			type: z.string().describe("Type of recurring payment, e.g., 'rent', 'netflix', 'spotify'"),
-			amount: z.number().positive().describe("Payment amount in USD"),
-			due_date: z.string().describe("Due date in ISO format (e.g., 2024-07-01)"),
-			target_wallet_address: z.string().describe("The wallet address where the payment will be sent"),
+			providerName: z.string().describe("The name of the service provider, e.g., 'Netflix'."),
+			query: z.string().optional().describe("Text to search for in the service name/description."),
 		}),
 	}
 );

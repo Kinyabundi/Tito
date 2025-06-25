@@ -25,5 +25,7 @@ const ServiceProviderSchema = new Schema(
 	}
 );
 
+ServiceProviderSchema.index({ name: 'text' });
+
 export const ServiceProvider = mongoose.model("ServiceProvider", ServiceProviderSchema);
 export type IServiceProvider = InferSchemaType<typeof ServiceProviderSchema>;

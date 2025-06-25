@@ -52,4 +52,8 @@ export class ServiceProviderService {
 	async getAllProviders(page: number = 1, limit: number = 10): Promise<{ providers: IServiceProvider[]; total: number }> {
 		return await this.serviceProviderRepository.findAll(page, limit);
 	}
+
+	async searchProvidersByName(name: string): Promise<IServiceProvider[]> {
+		return await this.serviceProviderRepository.searchByName(name);
+	}
 }

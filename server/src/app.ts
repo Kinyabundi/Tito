@@ -9,9 +9,9 @@ import { createReactAgent, ToolNode } from "@langchain/langgraph/prebuilt";
 import { convertToOpenAITool } from "@langchain/core/utils/function_calling";
 import { StateGraph } from "@langchain/langgraph";
 import { Bot, CallbackQueryContext, CommandContext, Context } from "grammy";
-import { rentRegisterTool } from "./tools";
 import { User } from "grammy/types";
 import { botSetupUserAccount, getAccountByTelegramID } from "./bot-actions";
+import { fetchAllServiceProvidersTool, fetchServicesByProviderNameTool } from "./tools";
 
 type TUser = User;
 
@@ -47,7 +47,7 @@ const handleUserState = async (ctx: Context, handler: any) => {
 
 const bot = new Bot(TELEGRAM_BOT_TOKEN);
 
-const titoTools = [rentRegisterTool];
+const titoTools = [fetchAllServiceProvidersTool, fetchServicesByProviderNameTool];
 
 interface AgentConfig {
 	configurable: {

@@ -64,4 +64,15 @@ export class ServiceRepository {
       .populate('provider_id')
       .exec();
   }
+
+  async searchByProviderAndQuery(providerId: string, query: string): Promise<IService[]> {
+    return await Service.find({
+      provider_id: new mongoose.Types.ObjectId(providerId),
+      $text: { $search: query },
+      status: 'active',
+    }, { score: { $meta: "textScore" } })
+      .sort({ score: { $meta: "textScore" } })
+      .populate('provider_id')
+      .exec();
+  }
 }
