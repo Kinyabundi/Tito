@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Subscription, ISubscription } from '../models/subscription.model';
 
 export class SubscriptionRepository {
-  async create(subscriptionData: Omit<ISubscription, '_id' | 'createdAt' | 'updatedAt' | 'payment_history'>): Promise<ISubscription> {
+  async create(subscriptionData: Omit<ISubscription, '_id' | 'createdAt' | 'updatedAt' | 'metadata'>): Promise<ISubscription> {
     const subscription = new Subscription({
       _id: new mongoose.Types.ObjectId(),
       ...subscriptionData,
@@ -42,27 +42,6 @@ export class SubscriptionRepository {
       .exec();
   }
 
-  async findExpiringSubscriptions(beforeDate: Date): Promise<ISubscription[]> {
-    return await Subscription.find({
-      end_date: { $lte: beforeDate },
-      status: { $in: ['active', 'trial'] }
-    })
-      .populate('service_id')
-      .populate('provider_id')
-      .exec();
-  }
-
-  async findSubscriptionsDueForBilling(beforeDate: Date): Promise<ISubscription[]> {
-    return await Subscription.find({
-      next_billing_date: { $lte: beforeDate },
-      status: 'active',
-      auto_renew: true
-    })
-      .populate('service_id')
-      .populate('provider_id')
-      .exec();
-  }
-
   async updateSubscription(id: string, updates: Partial<ISubscription>): Promise<ISubscription | null> {
     return await Subscription.findByIdAndUpdate(
       new mongoose.Types.ObjectId(id),
@@ -74,13 +53,6 @@ export class SubscriptionRepository {
       .exec();
   }
 
-  async addPaymentHistory(id: string, payment: any): Promise<ISubscription | null> {
-    return await Subscription.findByIdAndUpdate(
-      new mongoose.Types.ObjectId(id),
-      { $push: { payment_history: payment } },
-      { new: true }
-    ).exec();
-  }
 
   async cancelSubscription(id: string, reason?: string): Promise<ISubscription | null> {
     return await Subscription.findByIdAndUpdate(
