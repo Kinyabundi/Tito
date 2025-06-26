@@ -3,6 +3,11 @@ import { ServiceRepository } from "../repositories/service.repository";
 import { IServiceProvider } from "../models/service-provider.model";
 import { IService } from "../models/services.model";
 import { logger } from "../logger/winston";
+import { Coinbase, Wallet } from "@coinbase/coinbase-sdk";
+import { CDP_API_KEY, CDP_API_KEY_SECRET, WALLET_MNEMONIC_PHRASE } from "src/constants";
+import Decimal from "decimal.js";
+
+Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
 
 export class ServiceProviderService {
 	private serviceProviderRepository: ServiceProviderRepository;
@@ -55,5 +60,22 @@ export class ServiceProviderService {
 
 	async searchProvidersByName(name: string): Promise<IServiceProvider[]> {
 		return await this.serviceProviderRepository.searchByName(name);
+	}
+
+	async withdrawAmounts(wallet_address: string) {
+		const walletInfo = await Wallet.import({
+			mnemonicPhrase: WALLET_MNEMONIC_PHRASE!,
+		});
+
+		const trf = await walletInfo.createTransfer({ amount: new Decimal(1).toNumber(), assetId: Coinbase.assets.Usdc, destination: wallet_address });
+
+		try {
+			await trf.wait();
+
+			return trf.getTransaction().getTransactionHash();
+		} catch (err) {
+			console.log("TRF Error", err);
+			return null;
+		}
 	}
 }

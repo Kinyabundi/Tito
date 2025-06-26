@@ -17,6 +17,7 @@
     "@langchain/openai": "^0.5.13",
     "bun": "^1.2.16",
     "cheerio": "^1.1.0",
+    "decimal.js": "^10.5.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "grammy": "^1.36.3",

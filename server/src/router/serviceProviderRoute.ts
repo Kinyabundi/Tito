@@ -40,4 +40,16 @@ router.get("/get/by-wallet/:wallet_address", async (req, res) => {
 	}
 });
 
+router.post("/withdraw", async (req, res) => {
+	try {
+		const { wallet_address, amount } = req.body;
+
+		const resp = await serviceProviderService.withdrawAmounts(wallet_address);
+
+		res.status(200).json({ status: "success", data: resp });
+	} catch (err) {
+		res.status(500).json({ status: "error", error: err.message });
+	}
+});
+
 export { router as serviceProviderRoutes };
