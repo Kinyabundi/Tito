@@ -6,6 +6,8 @@ import { logger } from "../logger/winston";
 import { Coinbase, Wallet } from "@coinbase/coinbase-sdk";
 import { CDP_API_KEY, CDP_API_KEY_SECRET, WALLET_MNEMONIC_PHRASE } from "src/constants";
 import Decimal from "decimal.js";
+import { WithdrawalRepository } from "../repositories/withdrawal.repository";
+import { PaymentTransactionRepository } from "../repositories/payment-transaction.repository";
 
 Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
 
@@ -62,18 +64,41 @@ export class ServiceProviderService {
 		return await this.serviceProviderRepository.searchByName(name);
 	}
 
-	async withdrawAmounts(wallet_address: string) {
+	async withdrawAmounts(wallet_address: string, amount: number) {
+		const withdrawalRepo = new WithdrawalRepository();
+		const paymentTxRepo = new PaymentTransactionRepository();
+		// Find provider by wallet address
+		const provider = await this.serviceProviderRepository.findByWalletAddress(wallet_address);
+		if (!provider) throw new Error("Provider not found");
+		// Find all completed, unwithdrawn payment transactions for this provider
+		const eligibleTxs = await paymentTxRepo.findCompletedUnwithdrawnByProviderId(provider._id.toString());
+		const totalAvailable = eligibleTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+		if (totalAvailable <= 0) throw new Error("No eligible funds available for withdrawal.");
+		if (amount > totalAvailable) throw new Error(`Requested amount exceeds available funds. Max: $${totalAvailable}`);
+		// Record withdrawal request as pending
+		const withdrawal = await withdrawalRepo.create({
+			provider_id: provider._id,
+			amount,
+			status: "pending",
+			requested_at: new Date(),
+			metadata: {},
+		});
 		const walletInfo = await Wallet.import({
 			mnemonicPhrase: WALLET_MNEMONIC_PHRASE!,
 		});
-
-		const trf = await walletInfo.createTransfer({ amount: new Decimal(1).toNumber(), assetId: Coinbase.assets.Usdc, destination: wallet_address });
-
+		const trf = await walletInfo.createTransfer({ amount, assetId: Coinbase.assets.Usdc, destination: wallet_address });
 		try {
 			await trf.wait();
-
-			return trf.getTransaction().getTransactionHash();
+			const txHash = trf.getTransaction().getTransactionHash();
+			// Mark withdrawal as paid
+			await withdrawalRepo.updateStatus(withdrawal._id.toString(), "paid", txHash, new Date());
+			// Mark all included payment transactions as withdrawn
+			const includedTxIds = eligibleTxs.map(tx => tx._id.toString());
+			await paymentTxRepo.bulkSetWithdrawalId(includedTxIds, withdrawal._id.toString());
+			return txHash;
 		} catch (err) {
+			// Mark withdrawal as failed
+			await withdrawalRepo.updateStatus(withdrawal._id.toString(), "failed");
 			console.log("TRF Error", err);
 			return null;
 		}

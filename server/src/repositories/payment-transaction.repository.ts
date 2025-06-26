@@ -70,4 +70,28 @@ export class PaymentTransactionRepository {
       .populate('provider_id')
       .exec();
   }
+
+  async findCompletedUnwithdrawnByProviderId(providerId: string): Promise<IPaymentTransaction[]> {
+    // Find all services for this provider
+    const Service = require('../models/services.model').Service;
+    const services = await Service.find({ provider_id: providerId }).exec();
+    const serviceIds = services.map((s: any) => s._id);
+    // Find all subscriptions for these services
+    const Subscription = require('../models/subscription.model').Subscription;
+    const subs = await Subscription.find({ service_id: { $in: serviceIds } }).exec();
+    const subIds = subs.map((s: any) => s._id);
+    // Find all completed, unwithdrawn payment transactions for these subscriptions
+    return await PaymentTransaction.find({
+      subscription_id: { $in: subIds },
+      status: "completed",
+      withdrawal_id: null,
+    }).exec();
+  }
+
+  async bulkSetWithdrawalId(paymentTransactionIds: string[], withdrawalId: string): Promise<void> {
+    await PaymentTransaction.updateMany(
+      { _id: { $in: paymentTransactionIds } },
+      { $set: { withdrawal_id: withdrawalId } }
+    ).exec();
+  }
 }

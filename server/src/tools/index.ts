@@ -271,6 +271,7 @@ export const payForActiveSubscriptionsTool = tool(
 								network: paymentResponse.network,
 								payer: paymentResponse.payer,
 							},
+							withdrawal_id: null
 						});
 						results.push({
 							subscriptionId: sub._id,

@@ -49,6 +49,12 @@ const PaymentTransactionSchema = new Schema(
 		processed_at: {
 			type: Date,
 		},
+		withdrawal_id: {
+			type: Schema.Types.ObjectId,
+			ref: "Withdrawal",
+			default: null,
+			index: true,
+		},
 		metadata: Object
 	},
 	{
