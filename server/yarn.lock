@@ -4329,6 +4329,16 @@ x402-axios@^0.3.3:
     x402 "^0.3.3"
     zod "^3.24.2"
 
+x402-axios@^0.4.1:
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/x402-axios/-/x402-axios-0.4.1.tgz#d4fd6c4960328fd8e688bb64f6c7a8e1cc2ec215"
+  integrity sha512-GnLoD8xnDdpy61iHuEb85ukDnKxrtCcWkApuQb7szS4SKpMK8wVV9/i6u+ISNQgohECrABpWtYjwlUPAZp3mGA==
+  dependencies:
+    axios "^1.7.9"
+    viem "^2.21.26"
+    x402 "^0.4.1"
+    zod "^3.24.2"
+
 x402-express@^0.4.0:
   version "0.4.0"
   resolved "https://registry.npmjs.org/x402-express/-/x402-express-0.4.0.tgz"
@@ -4353,6 +4363,14 @@ x402@^0.4.0:
   integrity sha512-CbJEpBpPim0SYFQjN9GmTMivizdBlrYbhiybZ2zfMPy5y5qilkajUCL4BYJr9sArPki8kIOCHb95WvX6yfmYpA==
   dependencies:
     viem "^2.23.1"
+    zod "^3.24.2"
+
+x402@^0.4.1:
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/x402/-/x402-0.4.1.tgz#7da67b5d7e83e6b44e449e9b7e1793e836ac8b3c"
+  integrity sha512-5EW6FzcZjyizk4qa+t7QzclUBq//mCWbNf75O+WgDIyGtWg2FfqWPocmncjof6cG33rrHQG/PvNw5AMvKU6lpw==
+  dependencies:
+    viem "^2.21.26"
     zod "^3.24.2"
 
 xtend@^4.0.2, xtend@~4.0.0:

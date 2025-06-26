@@ -1,5 +1,8 @@
+import { EvmServerAccount } from "@coinbase/cdp-sdk";
 import axios, { AxiosRequestConfig } from "axios";
 import { API_BASE_URL } from "src/constants";
+import { withPaymentInterceptor } from "x402-axios";
+import { toAccount } from "viem/accounts";
 
 interface CreateAxiosClientOptions {
 	options?: AxiosRequestConfig;
@@ -20,3 +23,5 @@ export const axiosClient = createAxiosClient({
 		},
 	},
 });
+
+export const axiosPaymentApi = (account: EvmServerAccount) => withPaymentInterceptor(axios.create({ baseURL: API_BASE_URL }), toAccount(account));

@@ -129,7 +129,7 @@ async function main() {
 	for (const subscription of activeOrPendingSubscriptions) {
 		const service = await serviceManager.getServiceById(subscription.service_id.toString());
 		if (!service) continue;
-		const routeKey = `GET /subscriptions/pay/${subscription._id}`;
+		const routeKey = `GET /subscriptions-k/pay/${subscription._id}`;
 		paymentConfig[routeKey] = {
 			price: `$${service.pricing.amount}`,
 			network: "base-sepolia",
@@ -164,7 +164,7 @@ async function main() {
 		});
 	});
 
-	app.get("/subscriptions/pay/:subscriptionId", async (req, res) => {
+	app.get("/subscriptions-k/pay/:subscriptionId", async (req, res) => {
 		const subscriptionId = req.params.subscriptionId;
 		const subscriptionManager = new SubscriptionManagementService();
 		const serviceManager = new ServiceManagementService();
