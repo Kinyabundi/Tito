@@ -82,7 +82,6 @@ export class ServiceManagementService {
 
 	async searchServicesByProviderName(providerName: string, query: string): Promise<IService[]> {
 		const providers = await this.serviceProviderRepository.searchByName(providerName);
-		console.log('providers', providers)
 		if (!providers.length) return [];
 		// Use the top scoring provider
 		const provider = providers[0];
