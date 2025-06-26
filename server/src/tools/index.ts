@@ -1,13 +1,15 @@
 import { tool } from "@langchain/core/tools";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { z } from "zod";
-import { createCDPAccount } from "src/helpers/cdp";
+import { createCDPAccount, importCDPAccount } from "src/helpers/cdp";
 import { ServiceProviderService } from "src/services/serviceProviderService";
 import { ServiceManagementService } from "src/services/serviceManagementService";
 import { SubscriptionManagementService } from "src/services/subscriptionManagementService";
 import { UserService } from "src/services/userService";
 import mongoose from "mongoose";
-import { IService } from "src/models/services.model";
+import { axiosPaymentApi } from "src/lib/axios";
+import { decodeXPaymentResponse } from "x402-axios";
+import { PaymentTransactionRepository } from "src/repositories/payment-transaction.repository";
 
 export const fetchAllServiceProvidersTool = tool(
 	async ({}, config: RunnableConfig) => {
@@ -140,7 +142,7 @@ export const fetchUserActiveSubscriptionsTool = tool(
 			const providerService = new ServiceProviderService();
 			let response = `Your active/pending subscriptions:\n`;
 			for (const sub of activeSubs) {
-				console.log('sub', sub)
+				console.log("sub", sub);
 				const service = await serviceMngr.getServiceById(String(sub.service_id));
 				let providerName = "Unknown";
 				if (service && service.provider_id) {
@@ -162,7 +164,249 @@ export const fetchUserActiveSubscriptionsTool = tool(
 	},
 	{
 		name: "fetchUserActiveSubscriptionsTool",
-		description: "Fetches the user's active or pending subscriptions, listing the provider and service involved.",
+		description: "Fetches all active or pending subscriptions for the user, including provider and service details, and returns them in a user-friendly format.",
+		schema: z.object({}),
+	}
+);
+
+export const payForActiveSubscriptionsTool = tool(
+	async ({}, config: RunnableConfig) => {
+		let userTelegramId = config["configurable"]["user_id"];
+		try {
+			if (!userTelegramId) {
+				return "Missing user Telegram ID. Please provide your Telegram user ID.";
+			}
+			// Preload user info
+			const userService = new UserService();
+			const user = await userService.getUserByTelegramId(userTelegramId);
+			if (!user) {
+				return `No user found for Telegram ID '${userTelegramId}'. Please register first.`;
+			}
+			// Get active subscriptions
+			const subMngr = new SubscriptionManagementService();
+			const activeSubs = await subMngr.getActiveUserSubscriptions((user as any)._id.toString());
+			if (!activeSubs.length) {
+				return "You have no active or pending subscriptions.";
+			}
+			// For each subscription, fetch service and provider
+			const serviceMngr = new ServiceManagementService();
+			const providerService = new ServiceProviderService();
+			const account = await importCDPAccount({ address: user.primary_wallet_address });
+			const balances = await account.listTokenBalances({ network: "base-sepolia" });
+
+			const results = [];
+			const USDC_CONTRACT = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+			const usdcBalanceObj = balances.balances.find(
+				(b: any) =>
+					b.token.network === "base-sepolia" &&
+					b.token.contractAddress.toLowerCase() === USDC_CONTRACT.toLowerCase()
+			);
+			const usdcBalance = usdcBalanceObj ? BigInt(usdcBalanceObj.amount.amount) : 0n;
+
+			// Helper to calculate billing period end
+			function calculateBillingPeriodEnd(start: Date, billingCycle: string): Date {
+				switch (billingCycle) {
+					case "daily":
+						return new Date(start.getTime() + 24 * 60 * 60 * 1000);
+					case "weekly":
+						return new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+					case "monthly": {
+						const d = new Date(start);
+						d.setMonth(d.getMonth() + 1);
+						return d;
+					}
+					case "yearly": {
+						const d = new Date(start);
+						d.setFullYear(d.getFullYear() + 1);
+						return d;
+					}
+					default:
+						return start;
+				}
+			}
+
+			const paymentTxRepo = new PaymentTransactionRepository();
+
+			for (const sub of activeSubs) {
+				const service = await serviceMngr.getServiceById(String(sub.service_id));
+				let providerName = "Unknown";
+				if (service && service.provider_id) {
+					let provider;
+					if (mongoose.isValidObjectId(service.provider_id)) {
+						provider = await providerService.getProviderById(service.provider_id.toString());
+					} else if (typeof service.provider_id === "object" && "name" in service.provider_id) {
+						provider = service.provider_id;
+					}
+					if (provider && provider.name) providerName = provider.name;
+				}
+				if (!service) {
+					results.push({ subscriptionId: sub._id, status: "Service not found" });
+					continue;
+				}
+				const requiredAmount = BigInt(Math.floor(service.pricing.amount * 10 ** 6)); // USDC 6 decimals
+				if (usdcBalance < requiredAmount) {
+					results.push({ subscriptionId: sub._id, status: `Insufficient USDC balance. You have ${Number(usdcBalance) / 1e6} USDC, need ${service.pricing.amount} USDC.` });
+					continue;
+				}
+				try {
+					const rawResp = await axiosPaymentApi(account).get(`/subscriptions-k/pay/${sub._id.toString()}`);
+					const resp = rawResp.data;
+					const paymentResponse = decodeXPaymentResponse(rawResp.headers["x-payment-response"]);
+					console.log('paymentResponse',paymentResponse)
+					if (paymentResponse && paymentResponse.success) {
+						// Record payment transaction
+						const now = new Date();
+						const billing_period_start = now;
+						const billing_period_end = calculateBillingPeriodEnd(billing_period_start, service.pricing.billing_cycle);
+						await paymentTxRepo.create({
+							subscription_id: sub._id,
+							amount: service.pricing.amount,
+							transaction_hash: paymentResponse.transaction,
+							status: "completed",
+							payment_method: "x402",
+							billing_period_start,
+							billing_period_end,
+							processed_at: now,
+							metadata: {
+								network: paymentResponse.network,
+								payer: paymentResponse.payer,
+							},
+						});
+						results.push({
+							subscriptionId: sub._id,
+							status: `Your subscription has been paid to ${providerName} for ${service.name} with transaction hash: ${paymentResponse.transaction}`
+						});
+					} else {
+						results.push({ subscriptionId: sub._id, status: "Payment failed (unknown error)" });
+					}
+				} catch (err) {
+					results.push({ subscriptionId: sub._id, status: `Payment failed: ${err}` });
+				}
+			}
+			return results.map(r => `Subscription ${r.subscriptionId}: ${r.status}`).join("\n");
+		} catch (err) {
+			console.log("Errorro", err);
+			return "Something went wrong";
+		}
+	},
+	{
+		name: "payForActiveSubscriptionsTool",
+		description: "Automates payment for all of a user's active or pending subscriptions by checking their wallet balance and programmatically calling the payment API for each subscription. Returns a summary of the payment results.",
+		schema: z.object({}),
+	}
+);
+
+export const fetchUserPaymentHistoryTool = tool(
+	async ({ page = 1, limit = 10 }, config: RunnableConfig) => {
+		let userTelegramId = config["configurable"]["user_id"];
+		if (!userTelegramId) {
+			return "Missing user Telegram ID. Please provide your Telegram user ID.";
+		}
+		// Preload user info
+		const userService = new UserService();
+		const user = await userService.getUserByTelegramId(userTelegramId);
+		if (!user) {
+			return `No user found for Telegram ID '${userTelegramId}'. Please register first.`;
+		}
+		const paymentTxRepo = new PaymentTransactionRepository();
+		// Find all subscriptions for this user
+		const subMngr = new SubscriptionManagementService();
+		const userSubs = await subMngr.getUserSubscriptions((user as any)._id.toString());
+		const subIds = userSubs.map(s => s._id);
+		// Fetch payment transactions for these subscriptions
+		const allTxs = [];
+		for (const subId of subIds) {
+			const txs = await paymentTxRepo.findBySubscriptionId(subId.toString());
+			allTxs.push(...txs);
+		}
+		// Sort by createdAt desc
+		allTxs.sort((a, b) => b.createdAt - a.createdAt);
+		// Paginate
+		const pagedTxs = allTxs.slice((page - 1) * limit, page * limit);
+		// For each transaction, fetch service and provider
+		const serviceMngr = new ServiceManagementService();
+		const providerService = new ServiceProviderService();
+		let response = `Your payment transactions (page ${page}):\n`;
+		for (const tx of pagedTxs) {
+			let providerName = "Unknown";
+			let serviceName = "Unknown";
+			let service;
+			if (tx.subscription_id) {
+				const sub = userSubs.find(s => s._id.toString() === tx.subscription_id.toString());
+				if (sub) {
+					service = await serviceMngr.getServiceById(String(sub.service_id));
+					if (service) {
+						serviceName = service.name;
+						if (service.provider_id) {
+							let provider;
+							if (mongoose.isValidObjectId(service.provider_id)) {
+								provider = await providerService.getProviderById(service.provider_id.toString());
+							} else if (typeof service.provider_id === "object" && "name" in service.provider_id) {
+								provider = service.provider_id;
+							}
+							if (provider && provider.name) providerName = provider.name;
+						}
+					}
+				}
+			}
+			response += `- Provider: ${providerName}\n  Service: ${serviceName}\n  Amount: $${tx.amount}\n  Status: ${tx.status}\n  Tx Hash: ${tx.transaction_hash || "N/A"}\n  Paid: ${tx.processed_at ? new Date(tx.processed_at).toLocaleString() : "N/A"}\n-----------------------------\n`;
+		}
+		if (!pagedTxs.length) response += "No payment transactions found.";
+		return response;
+	},
+	{
+		name: "fetchUserPaymentHistoryTool",
+		description: "Fetches a paginated list of the user's payment transactions, including provider, service, amount, status, and transaction hash.",
+		schema: z.object({
+			page: z.number().optional().describe("Page number for pagination, default 1."),
+			limit: z.number().optional().describe("Number of transactions per page, default 10."),
+		}),
+	}
+);
+
+export const fetchUserSubscriptionHistoryTool = tool(
+	async ({}, config: RunnableConfig) => {
+		let userTelegramId = config["configurable"]["user_id"];
+		if (!userTelegramId) {
+			return "Missing user Telegram ID. Please provide your Telegram user ID.";
+		}
+		// Preload user info
+		const userService = new UserService();
+		const user = await userService.getUserByTelegramId(userTelegramId);
+		if (!user) {
+			return `No user found for Telegram ID '${userTelegramId}'. Please register first.`;
+		}
+		const subMngr = new SubscriptionManagementService();
+		const userSubs = await subMngr.getUserSubscriptions((user as any)._id.toString());
+		if (!userSubs.length) {
+			return "You have no subscriptions.";
+		}
+		const serviceMngr = new ServiceManagementService();
+		const providerService = new ServiceProviderService();
+		let response = `Your subscription history:\n`;
+		for (const sub of userSubs) {
+			let providerName = "Unknown";
+			let serviceName = "Unknown";
+			let service = await serviceMngr.getServiceById(String(sub.service_id));
+			if (service) {
+				serviceName = service.name;
+				if (service.provider_id) {
+					let provider;
+					if (mongoose.isValidObjectId(service.provider_id)) {
+						provider = await providerService.getProviderById(service.provider_id.toString());
+					} else if (typeof service.provider_id === "object" && "name" in service.provider_id) {
+						provider = service.provider_id;
+					}
+					if (provider && provider.name) providerName = provider.name;
+				}
+			}
+			response += `- Provider: ${providerName}\n  Service: ${serviceName}\n  Status: ${sub.status}\n  Start Date: ${sub.start_date ? new Date(sub.start_date).toLocaleString() : "N/A"}\n-----------------------------\n`;
+		}
+		return response;
+	},
+	{
+		name: "fetchUserSubscriptionHistoryTool",
+		description: "Fetches all subscriptions (active, expired, cancelled, etc.) for the user, including provider, service, status, and start date.",
 		schema: z.object({}),
 	}
 );

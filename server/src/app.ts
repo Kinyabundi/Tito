@@ -11,7 +11,7 @@ import { StateGraph } from "@langchain/langgraph";
 import { Bot, CallbackQueryContext, CommandContext, Context } from "grammy";
 import { User } from "grammy/types";
 import { botSetupUserAccount, getAccountByTelegramID } from "./bot-actions";
-import { fetchAllServiceProvidersTool, fetchServicesByProviderNameTool, fetchUserActiveSubscriptionsTool, setupServiceSubscriptionTool } from "./tools";
+import { fetchAllServiceProvidersTool, fetchServicesByProviderNameTool, fetchUserActiveSubscriptionsTool, payForActiveSubscriptionsTool, setupServiceSubscriptionTool } from "./tools";
 import DatabaseConnection from "./database/connection";
 import { logger } from "./logger/winston";
 import { Calculator } from "@langchain/community/tools/calculator";
@@ -64,7 +64,7 @@ const handleUserState = async (ctx: Context, handler: any) => {
 
 const bot = new Bot(TELEGRAM_BOT_TOKEN);
 
-const titoTools = [fetchAllServiceProvidersTool, fetchServicesByProviderNameTool, setupServiceSubscriptionTool, fetchUserActiveSubscriptionsTool];
+const titoTools = [fetchAllServiceProvidersTool, fetchServicesByProviderNameTool, setupServiceSubscriptionTool, fetchUserActiveSubscriptionsTool, payForActiveSubscriptionsTool];
 
 interface AgentConfig {
 	configurable: {
@@ -270,7 +270,7 @@ async function handleAndStreamMessage(ctx: Context) {
 				if (content) {
 					response += content + "\n";
 					console.log("response", response);
-					const escapedResponse = response.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+					const escapedResponse = response.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&");
 					await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, escapedResponse, { parse_mode: "MarkdownV2" });
 				}
 			}
@@ -282,7 +282,7 @@ async function handleAndStreamMessage(ctx: Context) {
 	if (state.next.includes("askHuman")) {
 		const lastMessage = state.values.messages[state.values.messages.length - 1] as BaseMessage;
 		response = `${lastMessage.content}\nPlease respond with 'approve', 'reject', or 'adjust' (with JSON, e.g., {\"amount\": 500}).`;
-		const escapedResponse = response.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+		const escapedResponse = response.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&");
 		await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, escapedResponse);
 	}
 }

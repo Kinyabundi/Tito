@@ -17,10 +17,10 @@ export async function createCDPAccount(name: string) {
 	return { account, privateKey };
 }
 
-export async function importCDPAccount({ privateKey }: { privateKey: string }) {
+export async function importCDPAccount({ address }: { address: string }) {
 	const cdp = new CdpClient();
 
-	const account = await cdp.evm.importAccount({ privateKey: privateKey as `0x${string}` });
+	const account = await cdp.evm.getAccount({ address: address as `0x${string}` });
 
 	return account;
 }

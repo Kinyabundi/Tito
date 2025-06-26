@@ -49,10 +49,7 @@ const PaymentTransactionSchema = new Schema(
 		processed_at: {
 			type: Date,
 		},
-		metadata: {
-			type: Map,
-			of: String,
-		},
+		metadata: Object
 	},
 	{
 		timestamps: true,
@@ -61,7 +58,6 @@ const PaymentTransactionSchema = new Schema(
 
 PaymentTransactionSchema.index({ subscription_id: 1, createdAt: -1 });
 PaymentTransactionSchema.index({ user_id: 1, status: 1 });
-PaymentTransactionSchema.index({ transaction_hash: 1 });
 PaymentTransactionSchema.index({ status: 1, createdAt: 1 });
 
 export const PaymentTransaction = mongoose.model("PaymentTransaction", PaymentTransactionSchema);
