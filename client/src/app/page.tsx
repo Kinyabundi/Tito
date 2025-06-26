@@ -1,13 +1,11 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Zap, Shield, CreditCard, Bot, Users, Globe, ChevronRight, DollarSign, BarChart3, Settings, X, Building } from "lucide-react";
-import Image from "next/image";
+import { ArrowRight, Bot, DollarSign, Settings, X, Building } from "lucide-react";
 import Link from "next/link";
-import { TbRobot, TbMoneybag, TbBox, TbLayout2, TbReceipt2, TbCreditCard, TbChartLine } from "react-icons/tb";
+import { TbRobot, TbBox, TbCreditCard, TbChartLine } from "react-icons/tb";
 import { RxArrowTopRight } from "react-icons/rx";
 import { ReactNode } from "react";
-import { CiGlobe } from "react-icons/ci";
 import ConnectWalletBtn from "@/components/btn/connect-wallet";
 import { useAccount } from "wagmi";
 import { toast } from "react-hot-toast";
@@ -118,29 +116,6 @@ const LandingPage = () => {
 
 		setFormData({ companyName: "", walletAddress: "" });
 	};
-
-	// Function to get the button text and action
-	const getButtonConfig = () => {
-		if (!isConnected) {
-			return { text: "Connect Wallet", action: () => toast.error("Please connect your wallet first.") };
-		}
-
-		if (checkingProvider) {
-			return { text: "Checking...", action: () => {} };
-		}
-
-		if (providerExists === true) {
-			return { text: "Go to Dashboard", action: () => router.push("/dashboard") };
-		}
-
-		if (providerExists === false) {
-			return { text: "Get Started", action: handleGetStarted };
-		}
-
-		return { text: "Get Started", action: handleGetStarted };
-	};
-
-	const buttonConfig = getButtonConfig();
 
 	return (
 		<div className="min-h-screen overflow-y-auto w-screen text-white bg-gradient-to-br from-[#0D1117] via-[#161B22] to-[#21262D] pt-4">
