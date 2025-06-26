@@ -6,6 +6,7 @@ import { ServiceProviderService } from "src/services/serviceProviderService";
 import { ServiceManagementService } from "src/services/serviceManagementService";
 import { SubscriptionManagementService } from "src/services/subscriptionManagementService";
 import { UserService } from "src/services/userService";
+import mongoose from "mongoose";
 
 export const fetchAllServiceProvidersTool = tool(
 	async ({}, config: RunnableConfig) => {
@@ -18,7 +19,6 @@ export const fetchAllServiceProvidersTool = tool(
 		providers.forEach((provider) => {
 			response += `- ${provider.name || "N/A"}\n`;
 		});
-		console.log(response)
 		return response;
 	},
 	{
@@ -62,9 +62,8 @@ export const fetchServicesByProviderNameTool = tool(
 );
 
 export const setupServiceSubscriptionTool = tool(
-	async ({ providerName, serviceName }, config: RunnableConfig) => {
-		// 1. Get userTelegramId from config if not provided
-		let userTelegramId = config['configurable']['user_id']
+	async ({ providerName, serviceName, startDate }, config: RunnableConfig) => {
+		let userTelegramId = config['configurable']['user_id'];
 		if (!userTelegramId) {
 			return "Missing user Telegram ID. Please provide your Telegram user ID.";
 		}
@@ -82,7 +81,7 @@ export const setupServiceSubscriptionTool = tool(
 		const providerService = new ServiceProviderService();
 		const providers = await providerService.searchProvidersByName(providerName);
 		if (!providers.length) {
-			return `No provider found matching '${providerName}'. Please check the provider name.`;
+			return `No provider found matching '${providerName}'. Please provide the provider name.`;
 		}
 		const provider = providers[0];
 		// 5. Check serviceName
@@ -96,17 +95,67 @@ export const setupServiceSubscriptionTool = tool(
 			return `No service found matching '${serviceName}' for provider '${provider.name}'.`;
 		}
 		const service = services[0];
-		// 7. Create subscription
+		// 7. Check startDate
+		if (!startDate) {
+			return "Missing start date. Please provide when you want your subscription to start (e.g., 'tomorrow', 'June 1', 'next Monday').";
+		}
+		// 8. Create subscription
 		const subMngr = new SubscriptionManagementService();
-		const subscription = await subMngr.createSubscription({ userId: (user as any)._id.toString(), serviceId: (service as any)._id.toString() });
-		return `Subscription created!\n- User: ${user.tg_user_id}\n- Provider: ${provider.name}\n- Service: ${service.name}\n- Status: ${subscription.status}`;
+		const subscription = await subMngr.createSubscription({ userId: (user as any)._id.toString(), serviceId: (service as any)._id.toString(), startDate });
+		return `Subscription created!\n- User: ${user.tg_user_id}\n- Provider: ${provider.name}\n- Service: ${service.name}\n- Status: ${subscription.status}\n- Start Date (as provided): ${startDate}`;
 	},
 	{
 		name: "setupServiceSubscriptionTool",
-		description: "Sets up a subscription for a service. Requires provider name, service name, and user Telegram ID (from config or input). Preloads user info and validates all data.",
+		description: "Sets up a subscription for a service. Requires provider name, service name, start date. Validates all data.",
 		schema: z.object({
 			providerName: z.string().describe("The name of the service provider, e.g., 'Netflix'."),
 			serviceName: z.string().describe("The name of the service to subscribe to, e.g., 'Premium Plan'."),
+			startDate: z.string().describe("Start date for the subscription in ISO format (e.g., 2024-06-01T00:00:00.000Z)."),
 		}),
+	}
+);
+
+export const fetchUserActiveSubscriptionsTool = tool(
+	async ({}, config: RunnableConfig) => {
+		let userTelegramId = config['configurable']['user_id'];
+		if (!userTelegramId) {
+			return "Missing user Telegram ID. Please provide your Telegram user ID.";
+		}
+		// Preload user info
+		const userService = new UserService();
+		const user = await userService.getUserByTelegramId(userTelegramId);
+		if (!user) {
+			return `No user found for Telegram ID '${userTelegramId}'. Please register first.`;
+		}
+		// Get active subscriptions
+		const subMngr = new SubscriptionManagementService();
+		const activeSubs = await subMngr.getActiveUserSubscriptions((user as any)._id.toString());
+		if (!activeSubs.length) {
+			return "You have no active or pending subscriptions.";
+		}
+		// For each subscription, fetch service and provider
+		const serviceMngr = new ServiceManagementService();
+		const providerService = new ServiceProviderService();
+		let response = `Your active/pending subscriptions:\n`;
+		for (const sub of activeSubs) {
+			const service = await serviceMngr.getServiceById((sub as any).service_id.toString());
+			let providerName = "Unknown";
+			if (service && service.provider_id) {
+				let provider;
+				if (mongoose.isValidObjectId(service.provider_id)) {
+					provider = await providerService.getProviderById(service.provider_id.toString());
+				} else if (typeof service.provider_id === 'object' && 'name' in service.provider_id) {
+					provider = service.provider_id;
+				}
+				if (provider && provider.name) providerName = provider.name;
+			}
+			response += `- Provider: ${providerName}\n  Service: ${service ? service.name : 'Unknown'}\n  Status: ${sub.status}\n-----------------------------\n`;
+		}
+		return response;
+	},
+	{
+		name: "fetchUserActiveSubscriptionsTool",
+		description: "Fetches the user's active or pending subscriptions, listing the provider and service involved.",
+		schema: z.object({}),
 	}
 );

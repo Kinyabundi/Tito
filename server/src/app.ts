@@ -1,8 +1,8 @@
 import { Coinbase, Wallet } from "@coinbase/coinbase-sdk";
 import { CDP_API_KEY, CDP_API_KEY_PRIVATE_KEY, CDP_API_KEY_SECRET, NETWORK_ID, OPENAI_API_KEY, TELEGRAM_BOT_TOKEN, WALLET_MNEMONIC_PHRASE } from "./constants";
 import { END, MemorySaver, MessagesAnnotation, START } from "@langchain/langgraph";
-import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import { AgentKit, AgentKitOptions, CdpWalletProvider } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { createReactAgent, ToolNode } from "@langchain/langgraph/prebuilt";
@@ -11,9 +11,12 @@ import { StateGraph } from "@langchain/langgraph";
 import { Bot, CallbackQueryContext, CommandContext, Context } from "grammy";
 import { User } from "grammy/types";
 import { botSetupUserAccount, getAccountByTelegramID } from "./bot-actions";
-import { fetchAllServiceProvidersTool, fetchServicesByProviderNameTool } from "./tools";
+import { fetchAllServiceProvidersTool, fetchServicesByProviderNameTool, fetchUserActiveSubscriptionsTool, setupServiceSubscriptionTool } from "./tools";
 import DatabaseConnection from "./database/connection";
 import { logger } from "./logger/winston";
+import { Calculator } from "@langchain/community/tools/calculator";
+import { WebBrowser } from "langchain/tools/webbrowser";
+import { SerpAPI } from "@langchain/community/tools/serpapi";
 
 type TUser = User;
 
@@ -61,7 +64,7 @@ const handleUserState = async (ctx: Context, handler: any) => {
 
 const bot = new Bot(TELEGRAM_BOT_TOKEN);
 
-const titoTools = [fetchAllServiceProvidersTool, fetchServicesByProviderNameTool];
+const titoTools = [fetchAllServiceProvidersTool, fetchServicesByProviderNameTool, setupServiceSubscriptionTool, fetchUserActiveSubscriptionsTool];
 
 interface AgentConfig {
 	configurable: {
@@ -113,6 +116,8 @@ async function initAgent(user_id: string) {
 			temperature: 0.7,
 		});
 
+		const embeddings = new OpenAIEmbeddings();
+
 		const walletInfo = await Wallet.import({
 			mnemonicPhrase: WALLET_MNEMONIC_PHRASE!,
 		});
@@ -138,7 +143,17 @@ async function initAgent(user_id: string) {
 
 		const tools = await getLangChainTools(agentKit);
 
-		const allTools = [...titoTools, ...tools];
+		const langchainTools = [
+			new SerpAPI(process.env.SERPAPI_API_KEY, {
+				location: "Austin,Texas,United States",
+				hl: "en",
+				gl: "us",
+			}),
+			new Calculator(),
+			new WebBrowser({ model: llm, embeddings }),
+		];
+
+		const allTools = [...titoTools, ...tools, ...langchainTools];
 
 		memoryStore[user_id] = new MemorySaver();
 
@@ -151,8 +166,26 @@ async function initAgent(user_id: string) {
 		const modelWithTools = llm.bindTools(allTools.map((t) => convertToOpenAITool(t)));
 
 		async function callModel(state: typeof MessagesAnnotation.State): Promise<Partial<typeof MessagesAnnotation.State>> {
-			const messages = state.messages;
-			const response = await modelWithTools.invoke(messages);
+			const userMessages = state.messages;
+
+			const currentDate = new Date().toLocaleDateString()
+			const currentTime = new Date().toLocaleTimeString()
+
+			const systemPrompt = `You are Tito, a helpful AI assistant that manages user recurring subscriptions and wallets. Always maintain a polite, friendly, and professional tone in your responses. Current Date is ${currentDate} at approximately ${currentTime}. Provide clear, concise, and accurate answers, and handle errors gracefully by offering actionable guidance (e.g., suggesting valid inputs or next steps).
+
+You can use the following tools to assist users:
+${allTools.map((tool) => `- **${tool.name}**: ${tool.description}`).join("\n")}
+
+Use these tools (${allTools
+				.map((tool) => tool.name)
+				.join(
+					", "
+				)}) to validate inputs and process requests accurately. The WebBrowser tool can access the internet and can assist in other queries. If a user's request is unclear or missing required information (e.g.,provider name, or start date), politely ask for clarification. If a tool returns no results (e.g., no providers or services found), inform the user courteously and suggest alternatives, such as checking the provider name or listing available providers. Ensure responses are user-friendly and encourage further interaction if needed.`;
+			const systemMessage = new SystemMessage({ content: systemPrompt });
+
+			const messagesWithSystem = [systemMessage, ...userMessages];
+
+			const response = await modelWithTools.invoke(messagesWithSystem);
 			return { messages: [response] };
 		}
 
@@ -210,7 +243,7 @@ async function handleAndStreamMessage(ctx: Context) {
 	let state = await agent.getState(config);
 
 	// Send initial placeholder message
-	let sentMessage = await ctx.reply("...");
+	let sentMessage = await ctx.reply("...", {parse_mode: "Markdown"});
 	let response = "";
 
 	// Choose stream input based on state

@@ -10,8 +10,8 @@ export class SubscriptionManagementService {
 		this.subscriptionRepository = new SubscriptionRepository();
 	}
 
-	async createSubscription(subscriptionData: { userId: string; serviceId: string }): Promise<ISubscription> {
-		const start_date = new Date();
+	async createSubscription(subscriptionData: { userId: string; serviceId: string, startDate: string }): Promise<ISubscription> {
+		const start_date = new Date(subscriptionData.startDate);
 
 		const subscription_data = {
 			user_id: new mongoose.Types.ObjectId(subscriptionData.userId),
