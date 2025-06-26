@@ -245,7 +245,7 @@ export const payForActiveSubscriptionsTool = tool(
 				}
 				const requiredAmount = BigInt(Math.floor(service.pricing.amount * 10 ** 6)); // USDC 6 decimals
 				if (usdcBalance < requiredAmount) {
-					results.push({ subscriptionId: sub._id, status: `Insufficient USDC balance. You have ${Number(usdcBalance) / 1e6} USDC, need ${service.pricing.amount} USDC.` });
+					results.push({ subscriptionId: sub._id, status: `Insufficient USDC balance. You have ${Number(usdcBalance) / 1e6} USDC, need ${service.pricing.amount} USDC. Please deposit funds to your wallet address: ${user.primary_wallet_address}` });
 					continue;
 				}
 				try {
