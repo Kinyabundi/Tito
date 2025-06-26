@@ -12,7 +12,7 @@ import ConnectWalletBtn from "@/components/btn/connect-wallet";
 import { useAccount } from 'wagmi';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
-import { get } from 'http';
+import { useRouter } from 'next/navigation';
 
 interface HomeLinkProps {
 	isActive?: boolean;
@@ -45,11 +45,14 @@ const LandingPage = () => {
 		walletAddress: '',
 	});
 
+const route = useRouter();
+
 	const getProviderByAddress = async (address: string) => {
 		const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/service-providers/get/by-wallet/${address}`)
 		if (response.data.status !== "success") {
 			console.error("Error fetching provider:");
 		}
+		route.push("/dashboard");
 		console.log("Provider data:", response);
 		return response.data;
 	}
