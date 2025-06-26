@@ -35,10 +35,8 @@ interface Service {
   price: number;
   billingCycle: 'monthly' | 'yearly' | 'weekly';
   subscribers: number;
-  revenue: number;
-  status: 'active' | 'paused' | 'draft';
+  status?: 'active' | 'paused' | 'draft';
   createdAt: string;
-  category: string;
 }
 
 interface Payment {
@@ -85,10 +83,8 @@ const DashboardPage = () => {
           price: 15.99,
           billingCycle: 'monthly',
           subscribers: 1247,
-          revenue: 19941.53,
           status: 'active',
           createdAt: '2024-01-15',
-          category: 'Entertainment'
         },
         {
           id: '2',
@@ -97,10 +93,8 @@ const DashboardPage = () => {
           price: 9.99,
           billingCycle: 'monthly',
           subscribers: 892,
-          revenue: 8911.08,
           status: 'active',
           createdAt: '2024-02-01',
-          category: 'Storage'
         },
         {
           id: '3',
@@ -109,10 +103,8 @@ const DashboardPage = () => {
           price: 29.99,
           billingCycle: 'monthly',
           subscribers: 456,
-          revenue: 13675.44,
           status: 'active',
           createdAt: '2024-01-10',
-          category: 'Design'
         }
       ]);
 
@@ -175,7 +167,6 @@ const DashboardPage = () => {
     }, 1000);
   }, []);
 
-  const totalRevenue = services.reduce((sum, service) => sum + service.revenue, 0);
   const totalSubscribers = services.reduce((sum, service) => sum + service.subscribers, 0);
   const activeServices = services.filter(s => s.status === 'active').length;
 
@@ -257,7 +248,6 @@ const DashboardPage = () => {
           {activeTab === 'overview' && (
             <OverviewTab 
               services={services}
-              totalRevenue={totalRevenue}
               totalSubscribers={totalSubscribers}
               activeServices={activeServices}
               payments={payments}
@@ -320,13 +310,11 @@ const NavItem = ({ icon, label, active, onClick }: {
 // Overview Tab Component
 const OverviewTab = ({ 
   services, 
-  totalRevenue, 
   totalSubscribers, 
   activeServices, 
   payments 
 }: {
   services: Service[];
-  totalRevenue: number;
   totalSubscribers: number;
   activeServices: number;
   payments: Payment[];
@@ -341,13 +329,13 @@ const OverviewTab = ({
 
     {/* Stats Cards */}
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <StatsCard
+      {/* <StatsCard
         title="Total Revenue"
         value={`$${totalRevenue.toLocaleString()}`}
         icon={<DollarSign className="w-8 h-8" />}
         trend="+12.5%"
         trendUp={true}
-      />
+      /> */}
       <StatsCard
         title="Total Subscribers"
         value={totalSubscribers.toLocaleString()}
@@ -387,7 +375,7 @@ const OverviewTab = ({
               </div>
             </div>
             <div className="text-right">
-              <p className="font-semibold text-green-400">${service.revenue.toLocaleString()}</p>
+              {/* <p className="font-semibold text-green-400">${service.revenue.toLocaleString()}</p> */}
               <p className="text-sm text-gray-400">${service.price}/{service.billingCycle}</p>
             </div>
           </div>
@@ -440,8 +428,7 @@ const ServicesTab = ({
   setSearchTerm: React.Dispatch<React.SetStateAction<string>>;
 }) => {
   const filteredServices = services.filter(service =>
-    service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.category.toLowerCase().includes(searchTerm.toLowerCase())
+    service.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -655,7 +642,7 @@ const ServiceCard = ({ service }: { service: Service }) => (
         service.status === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
         'bg-gray-500/20 text-gray-400'
       )}>
-        {service.status.charAt(0).toUpperCase() + service.status.slice(1)}
+        {service.status ? service.status.charAt(0).toUpperCase() + service.status.slice(1) : 'Unknown'}
       </div>
       <div className="flex items-center gap-2">
         <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
@@ -690,7 +677,7 @@ const ServiceCard = ({ service }: { service: Service }) => (
       <div className="pt-3 border-t border-gray-600">
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-400">Revenue</span>
-          <span className="font-semibold text-green-400">${service.revenue.toLocaleString()}</span>
+          {/* <span className="font-semibold text-green-400">${service.revenue.toLocaleString()}</span> */}
         </div>
       </div>
     </div>
@@ -807,23 +794,24 @@ const CreateServiceModal = ({
     description: '',
     price: '',
     billingCycle: 'monthly' as 'monthly' | 'yearly' | 'weekly',
-    category: '',
-    status: 'draft' as 'active' | 'paused' | 'draft'
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
+    const serviceData = {
       name: formData.name,
       description: formData.description,
-      price: parseFloat(formData.price),
+      pricing: {
+        amount: parseFloat(formData.price),
       billingCycle: formData.billingCycle,
-      category: formData.category,
-      status: formData.status,
-      subscribers: 0,
-      revenue: 0,
-      createdAt: new Date().toISOString().split('T')[0]
-    });
+      }
+     
+    };
+
+     const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/services-k/new`, serviceData);
+
+     console.log(response)
+    
   };
 
   return (
@@ -850,7 +838,7 @@ const CreateServiceModal = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Service Name *
+                Service Name 
               </label>
               <input
                 type="text"
@@ -861,26 +849,7 @@ const CreateServiceModal = ({
                 placeholder="e.g., Premium Streaming"
               />
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Category *
-              </label>
-              <select
-                required
-                value={formData.category}
-                onChange={(e) => setFormData({...formData, category: e.target.value})}
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
-              >
-                <option value="">Select Category</option>
-                <option value="Entertainment">Entertainment</option>
-                <option value="Storage">Storage</option>
-                <option value="Design">Design</option>
-                <option value="Development">Development</option>
-                <option value="Analytics">Analytics</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
+        
           </div>
 
           <div>
@@ -900,7 +869,7 @@ const CreateServiceModal = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Price (USD) *
+                Price 
               </label>
               <input
                 type="number"
@@ -916,7 +885,7 @@ const CreateServiceModal = ({
             
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Billing Cycle *
+                Billing Cycle 
               </label>
               <select
                 value={formData.billingCycle}
@@ -930,7 +899,7 @@ const CreateServiceModal = ({
             </div>
           </div>
 
-          <div>
+          {/* <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Initial Status
             </label>
@@ -943,7 +912,7 @@ const CreateServiceModal = ({
               <option value="active">Active</option>
               <option value="paused">Paused</option>
             </select>
-          </div>
+          </div> */}
 
           <div className="flex gap-4 pt-4">
             <button

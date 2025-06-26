@@ -96,7 +96,7 @@ const LandingPage = () => {
 		try {
 			const providerData = {
 				companyName: formData.companyName,
-				walletAddress: address,
+				wallet_address: address
 			};
 
 			const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/service-providers/new`, providerData);
