@@ -27,6 +27,7 @@ import Link from "next/link";
 import { useAccount } from 'wagmi';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
+import { useAuthStore } from "@/hooks/store/useAuthStore";
 
 interface Service {
   id: string;
@@ -63,6 +64,7 @@ interface Subscriber {
 
 const DashboardPage = () => {
   const { address, isConnected } = useAccount();
+  const { account } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'payments' | 'subscribers'>('overview');
   const [services, setServices] = useState<Service[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -71,101 +73,139 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Mock data for demonstration
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setServices([
-        {
-          id: '1',
-          name: 'Premium Streaming',
-          description: 'High-quality video streaming service',
-          price: 15.99,
-          billingCycle: 'monthly',
-          subscribers: 1247,
-          status: 'active',
-          createdAt: '2024-01-15',
-        },
-        {
-          id: '2',
-          name: 'Cloud Storage Pro',
-          description: 'Secure cloud storage with 1TB space',
-          price: 9.99,
-          billingCycle: 'monthly',
-          subscribers: 892,
-          status: 'active',
-          createdAt: '2024-02-01',
-        },
-        {
-          id: '3',
-          name: 'Design Tools Suite',
-          description: 'Professional design tools and templates',
-          price: 29.99,
-          billingCycle: 'monthly',
-          subscribers: 456,
-          status: 'active',
-          createdAt: '2024-01-10',
-        }
-      ]);
-
-      setPayments([
-        {
-          id: '1',
-          serviceId: '1',
-          serviceName: 'Premium Streaming',
-          amount: 15.99,
-          status: 'completed',
-          customerWallet: '0x1234...5678',
-          txHash: '0xabcd...efgh',
-          createdAt: '2024-03-15T10:30:00Z'
-        },
-        {
-          id: '2',
-          serviceId: '2',
-          serviceName: 'Cloud Storage Pro',
-          amount: 9.99,
-          status: 'completed',
-          customerWallet: '0x2345...6789',
-          txHash: '0xbcde...fghi',
-          createdAt: '2024-03-15T09:15:00Z'
-        },
-        {
-          id: '3',
-          serviceId: '1',
-          serviceName: 'Premium Streaming',
-          amount: 15.99,
-          status: 'pending',
-          customerWallet: '0x3456...7890',
-          createdAt: '2024-03-15T08:45:00Z'
-        }
-      ]);
-
-      setSubscribers([
-        {
-          id: '1',
-          serviceId: '1',
-          serviceName: 'Premium Streaming',
-          walletAddress: '0x1234...5678',
-          status: 'active',
-          subscribedAt: '2024-01-15',
-          nextBilling: '2024-04-15',
-          totalPaid: 47.97
-        },
-        {
-          id: '2',
-          serviceId: '2',
-          serviceName: 'Cloud Storage Pro',
-          walletAddress: '0x2345...6789',
-          status: 'active',
-          subscribedAt: '2024-02-01',
-          nextBilling: '2024-04-01',
-          totalPaid: 19.98
-        }
-      ]);
-
+  // Fetch services by provider ID
+  const fetchServicesByProvider = async () => {
+    if (!account?._id) return;
+    
+    try {
+      setLoading(true);
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/services-k/get/by-provider-id/${account._id}`);
+      
+      if (response.data.status === "success" && response.data.data) {
+        // Transform API data to match your interface
+        const transformedServices = response.data.data.map((service: any) => ({
+          id: service._id,
+          name: service.name,
+          description: service.description,
+          price: service.pricing?.amount || 0,
+          billingCycle: service.pricing?.billingCycle || 'monthly',
+          subscribers: service.subscribers || 0,
+          status: service.status || 'active',
+          createdAt: service.createdAt
+        }));
+        setServices(transformedServices);
+      } else {
+        console.log("No services found for this provider");
+        setServices([]);
+      }
+    } catch (error) {
+      console.error("Error fetching services:", error);
+      toast.error("Failed to load services");
+      setServices([]);
+    } finally {
       setLoading(false);
-    }, 1000);
-  }, []);
+    }
+  };
+
+  // Load data when component mounts or account changes
+  useEffect(() => {
+    if (account?._id) {
+      fetchServicesByProvider();
+    } else {
+      // Load mock data if no account (for demo purposes)
+      setTimeout(() => {
+        setServices([
+          {
+            id: '1',
+            name: 'Premium Streaming',
+            description: 'High-quality video streaming service',
+            price: 15.99,
+            billingCycle: 'monthly',
+            subscribers: 1247,
+            status: 'active',
+            createdAt: '2024-01-15',
+          },
+          {
+            id: '2',
+            name: 'Cloud Storage Pro',
+            description: 'Secure cloud storage with 1TB space',
+            price: 9.99,
+            billingCycle: 'monthly',
+            subscribers: 892,
+            status: 'active',
+            createdAt: '2024-02-01',
+          },
+          {
+            id: '3',
+            name: 'Design Tools Suite',
+            description: 'Professional design tools and templates',
+            price: 29.99,
+            billingCycle: 'monthly',
+            subscribers: 456,
+            status: 'active',
+            createdAt: '2024-01-10',
+          }
+        ]);
+        setLoading(false);
+      }, 1000);
+    }
+
+    // Load mock payments and subscribers
+    setPayments([
+      {
+        id: '1',
+        serviceId: '1',
+        serviceName: 'Premium Streaming',
+        amount: 15.99,
+        status: 'completed',
+        customerWallet: '0x1234...5678',
+        txHash: '0xabcd...efgh',
+        createdAt: '2024-03-15T10:30:00Z'
+      },
+      {
+        id: '2',
+        serviceId: '2',
+        serviceName: 'Cloud Storage Pro',
+        amount: 9.99,
+        status: 'completed',
+        customerWallet: '0x2345...6789',
+        txHash: '0xbcde...fghi',
+        createdAt: '2024-03-15T09:15:00Z'
+      },
+      {
+        id: '3',
+        serviceId: '1',
+        serviceName: 'Premium Streaming',
+        amount: 15.99,
+        status: 'pending',
+        customerWallet: '0x3456...7890',
+        createdAt: '2024-03-15T08:45:00Z'
+      }
+    ]);
+
+    setSubscribers([
+      {
+        id: '1',
+        serviceId: '1',
+        serviceName: 'Premium Streaming',
+        walletAddress: '0x1234...5678',
+        status: 'active',
+        subscribedAt: '2024-01-15',
+        nextBilling: '2024-04-15',
+        totalPaid: 47.97
+      },
+      {
+        id: '2',
+        serviceId: '2',
+        serviceName: 'Cloud Storage Pro',
+        walletAddress: '0x2345...6789',
+        status: 'active',
+        subscribedAt: '2024-02-01',
+        nextBilling: '2024-04-01',
+        totalPaid: 19.98
+      }
+    ]);
+  }, [account?._id]);
 
   const totalSubscribers = services.reduce((sum, service) => sum + service.subscribers, 0);
   const activeServices = services.filter(s => s.status === 'active').length;
@@ -245,40 +285,52 @@ const DashboardPage = () => {
 
         {/* Main Content */}
         <div className="flex-1 p-6">
-          {activeTab === 'overview' && (
-            <OverviewTab 
-              services={services}
-              totalSubscribers={totalSubscribers}
-              activeServices={activeServices}
-              payments={payments}
-            />
-          )}
-          
-          {activeTab === 'services' && (
-            <ServicesTab 
-              services={services}
-              setServices={setServices}
-              showCreateService={showCreateService}
-              setShowCreateService={setShowCreateService}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-            />
-          )}
-          
-          {activeTab === 'payments' && (
-            <PaymentsTab 
-              payments={payments}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-            />
-          )}
-          
-          {activeTab === 'subscribers' && (
-            <SubscribersTab 
-              subscribers={subscribers}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-            />
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="w-8 h-8 border-4 border-[#6366F1] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-400">Loading...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'overview' && (
+                <OverviewTab 
+                  services={services}
+                  totalSubscribers={totalSubscribers}
+                  activeServices={activeServices}
+                  payments={payments}
+                />
+              )}
+              
+              {activeTab === 'services' && (
+                <ServicesTab 
+                  services={services}
+                  setServices={setServices}
+                  showCreateService={showCreateService}
+                  setShowCreateService={setShowCreateService}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  onServiceCreated={fetchServicesByProvider}
+                />
+              )}
+              
+              {activeTab === 'payments' && (
+                <PaymentsTab 
+                  payments={payments}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                />
+              )}
+              
+              {activeTab === 'subscribers' && (
+                <SubscribersTab 
+                  subscribers={subscribers}
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
@@ -329,13 +381,6 @@ const OverviewTab = ({
 
     {/* Stats Cards */}
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-      {/* <StatsCard
-        title="Total Revenue"
-        value={`$${totalRevenue.toLocaleString()}`}
-        icon={<DollarSign className="w-8 h-8" />}
-        trend="+12.5%"
-        trendUp={true}
-      /> */}
       <StatsCard
         title="Total Subscribers"
         value={totalSubscribers.toLocaleString()}
@@ -375,7 +420,6 @@ const OverviewTab = ({
               </div>
             </div>
             <div className="text-right">
-              {/* <p className="font-semibold text-green-400">${service.revenue.toLocaleString()}</p> */}
               <p className="text-sm text-gray-400">${service.price}/{service.billingCycle}</p>
             </div>
           </div>
@@ -418,7 +462,8 @@ const ServicesTab = ({
   showCreateService, 
   setShowCreateService,
   searchTerm,
-  setSearchTerm
+  setSearchTerm,
+  onServiceCreated
 }: {
   services: Service[];
   setServices: React.Dispatch<React.SetStateAction<Service[]>>;
@@ -426,6 +471,7 @@ const ServicesTab = ({
   setShowCreateService: React.Dispatch<React.SetStateAction<boolean>>;
   searchTerm: string;
   setSearchTerm: React.Dispatch<React.SetStateAction<string>>;
+  onServiceCreated: () => void;
 }) => {
   const filteredServices = services.filter(service =>
     service.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -458,19 +504,38 @@ const ServicesTab = ({
 
       {/* Services Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredServices.map((service) => (
-          <ServiceCard key={service.id} service={service} />
-        ))}
+        {filteredServices.length > 0 ? (
+          filteredServices.map((service) => (
+            <ServiceCard key={service.id} service={service} />
+          ))
+        ) : (
+          <div className="col-span-full text-center py-12">
+            <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Settings className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-300 mb-2">No Services Found</h3>
+            <p className="text-gray-400 mb-4">
+              {searchTerm ? "No services match your search criteria." : "You haven't created any services yet."}
+            </p>
+            {!searchTerm && (
+              <button
+                onClick={() => setShowCreateService(true)}
+                className="px-6 py-2 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-lg font-semibold hover:scale-105 transition-transform"
+              >
+                Create Your First Service
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Create Service Modal */}
       {showCreateService && (
         <CreateServiceModal
           onClose={() => setShowCreateService(false)}
-          onSubmit={(newService) => {
-            setServices(prev => [...prev, { ...newService, id: Date.now().toString() }]);
+          onSuccess={() => {
             setShowCreateService(false);
-            toast.success('Service created successfully!');
+            onServiceCreated();
           }}
         />
       )}
@@ -677,7 +742,6 @@ const ServiceCard = ({ service }: { service: Service }) => (
       <div className="pt-3 border-t border-gray-600">
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-400">Revenue</span>
-          {/* <span className="font-semibold text-green-400">${service.revenue.toLocaleString()}</span> */}
         </div>
       </div>
     </div>
@@ -784,10 +848,10 @@ const SubscriberCard = ({ subscriber }: { subscriber: Subscriber }) => (
 // Create Service Modal Component
 const CreateServiceModal = ({ 
   onClose, 
-  onSubmit 
+  onSuccess 
 }: {
   onClose: () => void;
-  onSubmit: (service: Omit<Service, 'id'>) => void;
+  onSuccess: () => void;
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -795,23 +859,44 @@ const CreateServiceModal = ({
     price: '',
     billingCycle: 'monthly' as 'monthly' | 'yearly' | 'weekly',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { account } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const serviceData = {
-      name: formData.name,
-      description: formData.description,
-      pricing: {
-        amount: parseFloat(formData.price),
-      billingCycle: formData.billingCycle,
-      }
-     
-    };
-
-     const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/services-k/new`, serviceData);
-
-     console.log(response)
     
+    if (!account?._id) {
+      toast.error('No provider account found');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      const serviceData = {
+        provider_id: account._id,
+        name: formData.name,
+        description: formData.description,
+        pricing: {
+          amount: parseFloat(formData.price),
+          billingCycle: formData.billingCycle,
+        }
+      };
+
+      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/services-k/new`, serviceData);
+      
+      if (response.data.status === "success") {
+        toast.success('Service created successfully!');
+        onSuccess(); // Close modal and refresh services
+      } else {
+        toast.error('Failed to create service');
+      }
+    } catch (error) {
+      console.error("Error creating service:", error);
+      toast.error('Failed to create service');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -820,6 +905,7 @@ const CreateServiceModal = ({
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+          disabled={isSubmitting}
         >
           <X className="w-6 h-6" />
         </button>
@@ -836,9 +922,9 @@ const CreateServiceModal = ({
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Service Name 
+                Service Name *
               </label>
               <input
                 type="text"
@@ -847,9 +933,9 @@ const CreateServiceModal = ({
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
                 placeholder="e.g., Premium Streaming"
+                disabled={isSubmitting}
               />
             </div>
-        
           </div>
 
           <div>
@@ -863,13 +949,14 @@ const CreateServiceModal = ({
               onChange={(e) => setFormData({...formData, description: e.target.value})}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent resize-none"
               placeholder="Describe your service..."
+              disabled={isSubmitting}
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Price 
+                Price *
               </label>
               <input
                 type="number"
@@ -880,17 +967,19 @@ const CreateServiceModal = ({
                 onChange={(e) => setFormData({...formData, price: e.target.value})}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
                 placeholder="9.99"
+                disabled={isSubmitting}
               />
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Billing Cycle 
+                Billing Cycle *
               </label>
               <select
                 value={formData.billingCycle}
                 onChange={(e) => setFormData({...formData, billingCycle: e.target.value as any})}
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
+                disabled={isSubmitting}
               >
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
@@ -899,34 +988,33 @@ const CreateServiceModal = ({
             </div>
           </div>
 
-          {/* <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Initial Status
-            </label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData({...formData, status: e.target.value as any})}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
-            >
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="paused">Paused</option>
-            </select>
-          </div> */}
-
           <div className="flex gap-4 pt-4">
             <button
               type="button"
               onClick={onClose}
               className="flex-1 px-6 py-3 border border-gray-600 rounded-lg font-semibold text-white hover:bg-gray-700 transition-colors"
+              disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-lg font-semibold text-white hover:scale-105 transition-transform"
+              disabled={isSubmitting}
+              className={cn(
+                "flex-1 px-6 py-3 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-lg font-semibold text-white transition-transform",
+                isSubmitting 
+                  ? "opacity-50 cursor-not-allowed" 
+                  : "hover:scale-105"
+              )}
             >
-              Create Service
+              {isSubmitting ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Creating...
+                </div>
+              ) : (
+                'Create Service'
+              )}
             </button>
           </div>
         </form>

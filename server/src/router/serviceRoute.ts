@@ -20,4 +20,21 @@ router.post("/new", async (req, res) => {
 	}
 });
 
+//get services by provider id 
+router.get("/get/by-provider-id/:provider_id", async (req, res) => {
+	try {
+		const {provider_id} = req.params
+		const services = await serviceMngr.getServicesByProvider(provider_id)
+		res.status(201).json({
+			status: "success",
+			data: services
+		})
+	} catch (error) {
+		res.status(500).json({
+			status:"error",
+			error: error.message
+		})
+	}
+})
+
 export { router as serviceRoutes };
