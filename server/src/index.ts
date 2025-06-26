@@ -12,6 +12,7 @@ import { serviceRoutes } from "./router/serviceRoute";
 import { subscriptionRoutes } from "./router/subscriptionRoute";
 import { ServiceManagementService } from "./services/serviceManagementService";
 import { SubscriptionManagementService } from "./services/subscriptionManagementService";
+import cors from "cors";
 
 Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
 
@@ -22,14 +23,12 @@ if (!FACILITATOR_URL || !ADDRESS) {
 
 const app = express();
 
-//enable CORS
-app.use((req, res, next) => {
-	res.header("Access-Control-Allow-Origin", "*");
-});
 
 app.use(express.json());
 
 app.use(morganMiddleware);
+
+app.use(cors());
 
 async function initializeDatabase() {
 	try {
