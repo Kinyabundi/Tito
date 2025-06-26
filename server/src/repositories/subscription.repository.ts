@@ -56,4 +56,8 @@ export class SubscriptionRepository {
 			status: { $in: ["active", "pendind"] },
 		}).exec();
 	}
+
+	async findAllActiveOrPending(): Promise<ISubscription[]> {
+		return await Subscription.find({ status: { $in: ["active", "pending"] } }).exec();
+	}
 }

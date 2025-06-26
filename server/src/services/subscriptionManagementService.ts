@@ -43,4 +43,8 @@ export class SubscriptionManagementService {
 		}
 		return subscription;
 	}
+
+	async getAllActiveOrPendingSubscriptions(): Promise<ISubscription[]> {
+		return await this.subscriptionRepository.findAllActiveOrPending();
+	}
 }
