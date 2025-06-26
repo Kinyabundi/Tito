@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from "@/lib/utils";
 import { ArrowRight, Zap, Shield, CreditCard, Bot, Users, Globe, ChevronRight, DollarSign, BarChart3, Settings, X, Building } from "lucide-react";
 import Image from "next/image";
@@ -40,63 +40,112 @@ interface ServiceCardProps {
 const LandingPage = () => {
 	const { address, isConnected } = useAccount();
 	const [showSignupForm, setShowSignupForm] = useState(false);
+	const [providerExists, setProviderExists] = useState<boolean | null>(null);
+	const [checkingProvider, setCheckingProvider] = useState(false);
 	const [formData, setFormData] = useState({
 		companyName: '',
 		walletAddress: '',
 	});
 
-const route = useRouter();
+	const router = useRouter();
 
-	const getProviderByAddress = async (address: string) => {
-		const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/service-providers/get/by-wallet/${address}`)
-		if (response.data.status !== "success") {
-			console.error("Error fetching provider:");
-		}
-		route.push("/dashboard");
-		console.log("Provider data:", response);
-		return response.data;
-	}
+	// Check if provider exists when wallet connects
+	useEffect(() => {
+		const checkProviderExists = async () => {
+			if (!address || !isConnected) {
+				setProviderExists(null);
+				return;
+			}
 
-	const handleSignup = () => {
-		if (!isConnected) {
-			toast.error('Please connect your wallet first.');
-			return;
-		}
-		if (address) {
-			getProviderByAddress(address);
-		}
-		setShowSignupForm(true);
-
-	};
-
-	const handleFormSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		if (!isConnected) {
-			toast.error('Please connect your wallet first.');
-			return;
-		}
-	const providerData = {
-			companyName: formData.companyName,
-			walletAddress: address
-		};
-		const provider = axios.post(`${process.env.NEXT_PUBLIC_API_URL}/service-providers/new`, providerData)
-			.then(response => {
-				if (response.data.status === "success") {
-					toast.success('Provider account created successfully!');
-					
-					setShowSignupForm(false);
-					return response.data.data;
+			try {
+				setCheckingProvider(true);
+				const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/service-providers/get/by-wallet/${address}`);
+				
+				if (response.data.status === "success" && response.data.data) {
+					setProviderExists(true);
 				} else {
-					toast.error('Error creating provider account. Please try again.');	
+					setProviderExists(false);
 				}
-			})
-			.catch(error => {
-				console.error("Error creating provider account:", error);
-				toast.error('Error creating provider account. Please try again.');
-			});
-		setFormData({ companyName: '', walletAddress: '' });
-		setShowSignupForm(false);
+			} catch (error) {
+				console.error("Error checking provider:", error);
+				setProviderExists(false);
+			} finally {
+				setCheckingProvider(false);
+			}
+		};
+
+		checkProviderExists();
+	}, [address, isConnected]);
+
+	const handleGetStarted = () => {
+		if (!isConnected) {
+			toast.error('Please connect your wallet first.');
+			return;
+		}
+
+		if (providerExists === true) {
+			// Provider exists, go to dashboard
+			router.push("/dashboard");
+		} else if (providerExists === false) {
+			// Provider doesn't exist, show signup form
+			setShowSignupForm(true);
+		}
 	};
+
+	const handleFormSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!isConnected || !address) {
+			toast.error('Please connect your wallet first.');
+			return;
+		}
+
+		try {
+			const providerData = {
+				companyName: formData.companyName,
+				walletAddress: address
+			};
+
+			const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/service-providers/new`, providerData);
+			
+			if (response.data.status === "success") {
+				toast.success('Provider account created successfully!');
+				setProviderExists(true);
+				setShowSignupForm(false);
+				router.push("/dashboard");
+			} else {
+				toast.error('Error creating provider account. Please try again.');	
+			}
+		} catch (error) {
+			console.error("Error creating provider account:", error);
+			toast.error('Error creating provider account. Please try again.');
+		}
+
+		setFormData({ companyName: '', walletAddress: '' });
+	};
+
+	// Function to get the button text and action
+	const getButtonConfig = () => {
+		if (!isConnected) {
+			return { text: 'Connect Wallet', action: () => toast.error('Please connect your wallet first.') };
+		}
+		
+		if (checkingProvider) {
+			return { text: 'Checking...', action: () => {} };
+		}
+		
+		if (providerExists === true) {
+			return { text: 'Go to Dashboard', action: () => router.push("/dashboard") };
+		}
+		
+		if (providerExists === false) {
+			return { text: 'Get Started', action: handleGetStarted };
+		}
+		
+		return { text: 'Get Started', action: handleGetStarted };
+	};
+
+	const buttonConfig = getButtonConfig();
+
 	return (
 		<div className="min-h-screen overflow-y-auto w-screen text-white bg-gradient-to-br from-[#0D1117] via-[#161B22] to-[#21262D] pt-4">
 			<div className="mt-2 flex items-center justify-between px-20">
@@ -104,68 +153,7 @@ const route = useRouter();
 					<div className="flex items-center gap-3">
 						<div className="w-12 h-12 bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] rounded-xl flex items-center justify-center">
 							<TbRobot className="w-8 h-8 text-white" />
-			{showSignupForm && (
-				<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-					<div className="bg-gradient-to-br from-[#1F2937] to-[#374151] p-8 rounded-3xl border border-gray-700 max-w-md w-full relative">
-						<button
-							onClick={() => setShowSignupForm(false)}
-							className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-						>
-							<X className="w-6 h-6" />
-						</button>
-						
-						<div className="mb-6">
-							<div className="flex items-center gap-3 mb-2">
-								<div className="w-10 h-10 bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] rounded-lg flex items-center justify-center">
-									<Building className="w-6 h-6 text-white" />
-								</div>
-								<h2 className="text-2xl font-bold text-white">Create Provider Account</h2>
-							</div>
-							<p className="text-gray-400">Start monetizing your services with Tito</p>
 						</div>
-
-						<form onSubmit={handleFormSubmit} className="space-y-4">
-							<div>
-								<label className="block text-sm font-medium text-gray-300 mb-2">
-									Company Name *
-								</label>
-								<input
-									type="text"
-									required
-									value={formData.companyName}
-									onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-									className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
-									placeholder="Your company name"
-								/>
-							</div>
-							<div className="bg-gray-800/50 p-4 rounded-lg border border-gray-600">
-								<label className="block text-sm font-medium text-gray-300 mb-2">
-									Wallet Address
-								</label>
-								<div className="text-sm text-gray-400 font-mono break-all">
-									{address || 'Not connected'}
-								</div>
-								<p className="text-xs text-gray-500 mt-1">
-									This will be used for receiving payments
-								</p>
-							</div>
-
-							<button
-								type="submit"
-								disabled={!isConnected}
-								className="w-full px-6 py-3 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-lg font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-							>
-								{isConnected ? 'Create Provider Account' : 'Connect Wallet First'}
-							</button>
-
-							<p className="text-xs text-gray-500 text-center">
-								By creating an account, you agree to our Terms of Service and Privacy Policy
-							</p>
-						</form>
-					</div>
-				</div>
-			)}
-		</div>
 						<span className="text-3xl font-bold bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] bg-clip-text text-transparent">Tito</span>
 						<span className="text-sm bg-gray-700 px-2 py-1 rounded-full">Provider Portal</span>
 					</div>
@@ -178,9 +166,13 @@ const route = useRouter();
 					<div className="ml-5 flex gap-3">
 						<ConnectWalletBtn />
 						<button 
-							onClick={handleSignup}
-							className="px-6 py-2 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-lg font-semibold hover:scale-105 transition-transform">
-							{isConnected ? 'Get Started' : 'Connect Wallet'}
+							onClick={buttonConfig.action}
+							disabled={checkingProvider}
+							className={cn(
+								"px-6 py-2 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-lg font-semibold hover:scale-105 transition-transform",
+								checkingProvider && "opacity-50 cursor-not-allowed hover:scale-100"
+							)}>
+							{buttonConfig.text}
 						</button>
 					</div>
 				</div>
@@ -202,10 +194,14 @@ const route = useRouter();
 					</div>
 					<div className="flex gap-4 mt-8">
 						<button 
-							onClick={handleSignup}
-							className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-xl font-semibold text-lg hover:scale-105 transition-transform">
+							onClick={buttonConfig.action}
+							disabled={checkingProvider}
+							className={cn(
+								"flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-xl font-semibold text-lg hover:scale-105 transition-transform",
+								checkingProvider && "opacity-50 cursor-not-allowed hover:scale-100"
+							)}>
 							<Settings className="w-5 h-5" />
-							Create Your Service
+							{providerExists === true ? 'Go to Dashboard' : 'Create Your Service'}
 							<ArrowRight className="w-5 h-5" />
 						</button>
 						<Link href="/docs">
@@ -341,7 +337,69 @@ const route = useRouter();
 					</div>
 				</div>
 			</div>
-			
+
+			{/* Signup Form Modal */}
+			{showSignupForm && (
+				<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+					<div className="bg-gradient-to-br from-[#1F2937] to-[#374151] p-8 rounded-3xl border border-gray-700 max-w-md w-full relative">
+						<button
+							onClick={() => setShowSignupForm(false)}
+							className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+						>
+							<X className="w-6 h-6" />
+						</button>
+						
+						<div className="mb-6">
+							<div className="flex items-center gap-3 mb-2">
+								<div className="w-10 h-10 bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] rounded-lg flex items-center justify-center">
+									<Building className="w-6 h-6 text-white" />
+								</div>
+								<h2 className="text-2xl font-bold text-white">Create Provider Account</h2>
+							</div>
+							<p className="text-gray-400">Start monetizing your services with Tito</p>
+						</div>
+
+						<form onSubmit={handleFormSubmit} className="space-y-4">
+							<div>
+								<label className="block text-sm font-medium text-gray-300 mb-2">
+									Company Name *
+								</label>
+								<input
+									type="text"
+									required
+									value={formData.companyName}
+									onChange={(e) => setFormData({...formData, companyName: e.target.value})}
+									className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent"
+									placeholder="Your company name"
+								/>
+							</div>
+							<div className="bg-gray-800/50 p-4 rounded-lg border border-gray-600">
+								<label className="block text-sm font-medium text-gray-300 mb-2">
+									Wallet Address
+								</label>
+								<div className="text-sm text-gray-400 font-mono break-all">
+									{address || 'Not connected'}
+								</div>
+								<p className="text-xs text-gray-500 mt-1">
+									This will be used for receiving payments
+								</p>
+							</div>
+
+							<button
+								type="submit"
+								disabled={!isConnected}
+								className="w-full px-6 py-3 bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] rounded-lg font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+							>
+								{isConnected ? 'Create Provider Account' : 'Connect Wallet First'}
+							</button>
+
+							<p className="text-xs text-gray-500 text-center">
+								By creating an account, you agree to our Terms of Service and Privacy Policy
+							</p>
+						</form>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 };
