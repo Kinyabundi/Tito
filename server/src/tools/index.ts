@@ -7,6 +7,7 @@ import { ServiceManagementService } from "src/services/serviceManagementService"
 import { SubscriptionManagementService } from "src/services/subscriptionManagementService";
 import { UserService } from "src/services/userService";
 import mongoose from "mongoose";
+import { IService } from "src/models/services.model";
 
 export const fetchAllServiceProvidersTool = tool(
 	async ({}, config: RunnableConfig) => {
@@ -63,7 +64,7 @@ export const fetchServicesByProviderNameTool = tool(
 
 export const setupServiceSubscriptionTool = tool(
 	async ({ providerName, serviceName, startDate }, config: RunnableConfig) => {
-		let userTelegramId = config['configurable']['user_id'];
+		let userTelegramId = config["configurable"]["user_id"];
 		if (!userTelegramId) {
 			return "Missing user Telegram ID. Please provide your Telegram user ID.";
 		}
@@ -117,41 +118,47 @@ export const setupServiceSubscriptionTool = tool(
 
 export const fetchUserActiveSubscriptionsTool = tool(
 	async ({}, config: RunnableConfig) => {
-		let userTelegramId = config['configurable']['user_id'];
-		if (!userTelegramId) {
-			return "Missing user Telegram ID. Please provide your Telegram user ID.";
-		}
-		// Preload user info
-		const userService = new UserService();
-		const user = await userService.getUserByTelegramId(userTelegramId);
-		if (!user) {
-			return `No user found for Telegram ID '${userTelegramId}'. Please register first.`;
-		}
-		// Get active subscriptions
-		const subMngr = new SubscriptionManagementService();
-		const activeSubs = await subMngr.getActiveUserSubscriptions((user as any)._id.toString());
-		if (!activeSubs.length) {
-			return "You have no active or pending subscriptions.";
-		}
-		// For each subscription, fetch service and provider
-		const serviceMngr = new ServiceManagementService();
-		const providerService = new ServiceProviderService();
-		let response = `Your active/pending subscriptions:\n`;
-		for (const sub of activeSubs) {
-			const service = await serviceMngr.getServiceById((sub as any).service_id.toString());
-			let providerName = "Unknown";
-			if (service && service.provider_id) {
-				let provider;
-				if (mongoose.isValidObjectId(service.provider_id)) {
-					provider = await providerService.getProviderById(service.provider_id.toString());
-				} else if (typeof service.provider_id === 'object' && 'name' in service.provider_id) {
-					provider = service.provider_id;
-				}
-				if (provider && provider.name) providerName = provider.name;
+		let userTelegramId = config["configurable"]["user_id"];
+		try {
+			if (!userTelegramId) {
+				return "Missing user Telegram ID. Please provide your Telegram user ID.";
 			}
-			response += `- Provider: ${providerName}\n  Service: ${service ? service.name : 'Unknown'}\n  Status: ${sub.status}\n-----------------------------\n`;
+			// Preload user info
+			const userService = new UserService();
+			const user = await userService.getUserByTelegramId(userTelegramId);
+			if (!user) {
+				return `No user found for Telegram ID '${userTelegramId}'. Please register first.`;
+			}
+			// Get active subscriptions
+			const subMngr = new SubscriptionManagementService();
+			const activeSubs = await subMngr.getActiveUserSubscriptions((user as any)._id.toString());
+			if (!activeSubs.length) {
+				return "You have no active or pending subscriptions.";
+			}
+			// For each subscription, fetch service and provider
+			const serviceMngr = new ServiceManagementService();
+			const providerService = new ServiceProviderService();
+			let response = `Your active/pending subscriptions:\n`;
+			for (const sub of activeSubs) {
+				console.log('sub', sub)
+				const service = await serviceMngr.getServiceById(String(sub.service_id));
+				let providerName = "Unknown";
+				if (service && service.provider_id) {
+					let provider;
+					if (mongoose.isValidObjectId(service.provider_id)) {
+						provider = await providerService.getProviderById(service.provider_id.toString());
+					} else if (typeof service.provider_id === "object" && "name" in service.provider_id) {
+						provider = service.provider_id;
+					}
+					if (provider && provider.name) providerName = provider.name;
+				}
+				response += `- Provider: ${providerName}\n  Service: ${service ? service.name : "Unknown"}\n  Status: ${sub.status}\n-----------------------------\n`;
+			}
+			return response;
+		} catch (err) {
+			console.log("Errorro", err);
+			return "Something went wrong";
 		}
-		return response;
 	},
 	{
 		name: "fetchUserActiveSubscriptionsTool",

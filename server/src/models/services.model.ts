@@ -9,7 +9,6 @@ const ServiceSchema = new Schema(
 		provider_id: {
 			ref: "ServiceProvider",
 			required: true,
-			index: true,
 			type: Schema.Types.ObjectId,
 		},
 		name: {
@@ -60,9 +59,7 @@ const ServiceSchema = new Schema(
 	}
 );
 
-ServiceSchema.index({ provider_id: 1, status: 1 });
-ServiceSchema.index({ status: 1 });
-ServiceSchema.index({ "x402_config.endpoint": 1 });
+ServiceSchema.index({  status: 1 });
 ServiceSchema.index({ name: 'text', description: 'text' });
 
 export const Service = mongoose.model("Service", ServiceSchema);

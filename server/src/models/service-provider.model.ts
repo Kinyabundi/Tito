@@ -13,7 +13,6 @@ const ServiceProviderSchema = new Schema(
 		wallet_address: {
 			type: String,
 			required: true,
-			index: true,
 		},
 		webhook_url: {
 			type: String,

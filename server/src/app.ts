@@ -168,8 +168,8 @@ async function initAgent(user_id: string) {
 		async function callModel(state: typeof MessagesAnnotation.State): Promise<Partial<typeof MessagesAnnotation.State>> {
 			const userMessages = state.messages;
 
-			const currentDate = new Date().toLocaleDateString()
-			const currentTime = new Date().toLocaleTimeString()
+			const currentDate = new Date().toLocaleDateString();
+			const currentTime = new Date().toLocaleTimeString();
 
 			const systemPrompt = `You are Tito, a helpful AI assistant that manages user recurring subscriptions and wallets. Always maintain a polite, friendly, and professional tone in your responses. Current Date is ${currentDate} at approximately ${currentTime}. Provide clear, concise, and accurate answers, and handle errors gracefully by offering actionable guidance (e.g., suggesting valid inputs or next steps).
 
@@ -243,7 +243,7 @@ async function handleAndStreamMessage(ctx: Context) {
 	let state = await agent.getState(config);
 
 	// Send initial placeholder message
-	let sentMessage = await ctx.reply("...", {parse_mode: "Markdown"});
+	let sentMessage = await ctx.reply("...", { parse_mode: "Markdown" });
 	let response = "";
 
 	// Choose stream input based on state
@@ -270,7 +270,8 @@ async function handleAndStreamMessage(ctx: Context) {
 				if (content) {
 					response += content + "\n";
 					console.log("response", response);
-					await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, response);
+					const escapedResponse = response.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+					await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, escapedResponse, { parse_mode: "MarkdownV2" });
 				}
 			}
 		}
@@ -281,7 +282,8 @@ async function handleAndStreamMessage(ctx: Context) {
 	if (state.next.includes("askHuman")) {
 		const lastMessage = state.values.messages[state.values.messages.length - 1] as BaseMessage;
 		response = `${lastMessage.content}\nPlease respond with 'approve', 'reject', or 'adjust' (with JSON, e.g., {\"amount\": 500}).`;
-		await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, response);
+		const escapedResponse = response.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+		await ctx.api.editMessageText(ctx.chat.id, sentMessage.message_id, escapedResponse);
 	}
 }
 
