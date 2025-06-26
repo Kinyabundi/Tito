@@ -22,6 +22,11 @@ if (!FACILITATOR_URL || !ADDRESS) {
 
 const app = express();
 
+//enable CORS
+app.use((req, res, next) => {
+	res.header("Access-Control-Allow-Origin", "*");
+});
+
 app.use(express.json());
 
 app.use(morganMiddleware);

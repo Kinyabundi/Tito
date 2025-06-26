@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { ServiceProvider, IServiceProvider } from '../models/service-provider.model';
+import { logger } from 'src/logger/winston';
 
 export class ServiceProviderRepository {
   async create(providerData: Omit<IServiceProvider, '_id' | 'createdAt' | 'updatedAt'>): Promise<IServiceProvider> {
@@ -14,9 +15,18 @@ export class ServiceProviderRepository {
     return await ServiceProvider.findById(new mongoose.Types.ObjectId(id)).exec();
   }
 
-  async findByWalletAddress(walletAddress: string): Promise<IServiceProvider | null> {
-    return await ServiceProvider.findOne({ 	wallet_address: { $regex: `^${walletAddress}$`, $options: "i" }}).exec();
+async findByWalletAddress(walletAddress: string): Promise<IServiceProvider | null> {
+  try {
+    const provider = await ServiceProvider.findOne({ 	
+      wallet_address: { $regex: `^${walletAddress}$`, $options: "i" }
+    }).exec();
+    
+      return provider;
+  } catch (error) {
+    console.log(error)
+    throw new Error(`Failed to find service provider: ${error.message}`);
   }
+}
 
   async updateProvider(id: string, updates: Partial<IServiceProvider>): Promise<IServiceProvider | null> {
     return await ServiceProvider.findByIdAndUpdate(

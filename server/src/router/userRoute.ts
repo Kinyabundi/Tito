@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logger } from "src/logger/winston";
 import { UserService } from "src/services/userService";
 
 const router = Router();

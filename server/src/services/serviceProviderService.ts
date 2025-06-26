@@ -53,7 +53,12 @@ export class ServiceProviderService {
 	}
 
 	async findByWalletAddress(walletAddress: string): Promise<IServiceProvider | null> {
-		return await this.serviceProviderRepository.findByWalletAddress(walletAddress);
+		try {
+			const provider = await this.serviceProviderRepository.findByWalletAddress(walletAddress);
+			return provider;
+		} catch (error) {
+			throw new Error(`Failed to find service provider: ${error.message}`);
+		}
 	}
 
 	async getAllProviders(page: number = 1, limit: number = 10): Promise<{ providers: IServiceProvider[]; total: number }> {
