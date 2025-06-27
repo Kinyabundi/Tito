@@ -194,6 +194,8 @@ export const payForActiveSubscriptionsTool = tool(
 			const account = await importCDPAccount({ address: user.primary_wallet_address });
 			const balances = await account.listTokenBalances({ network: "base-sepolia" });
 
+			console.log(balances)
+
 			const results = [];
 			const USDC_CONTRACT = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 			const usdcBalanceObj = balances.balances.find(
@@ -281,6 +283,7 @@ export const payForActiveSubscriptionsTool = tool(
 						results.push({ subscriptionId: sub._id, status: "Payment failed (unknown error)" });
 					}
 				} catch (err) {
+					console.log(err)
 					results.push({ subscriptionId: sub._id, status: `Payment failed: ${err}` });
 				}
 			}

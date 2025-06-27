@@ -13,6 +13,8 @@ import { subscriptionRoutes } from "./router/subscriptionRoute";
 import { ServiceManagementService } from "./services/serviceManagementService";
 import { SubscriptionManagementService } from "./services/subscriptionManagementService";
 import cors from "cors";
+import { PaymentService } from "./services/paymentService";
+import { paymentRoutes } from "./router/paymentRoute";
 
 Coinbase.configure({ apiKeyName: CDP_API_KEY, privateKey: CDP_API_KEY_SECRET.replace(/\\n/g, "\n") });
 
@@ -73,6 +75,7 @@ async function main() {
 	app.use("/service-providers", serviceProviderRoutes);
 	app.use("/services-k", serviceRoutes);
 	app.use("/subscriptions", subscriptionRoutes);
+	app.use("/payments", paymentRoutes)
 	app.get("/health", (req, res) => {
 		res.json({
 			status: "healthy",

@@ -44,6 +44,7 @@ interface Payment {
   id: string;
   serviceId: string;
   serviceName: string;
+  subscriptionId?: string;
   amount: number;
   status: 'completed' | 'pending' | 'failed';
   customerWallet: string;
@@ -73,6 +74,127 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
+  console.log(account)
+
+  // Fetch payments by subscription ID
+  const fetchPaymentsBySubscription = async (subscriptionId: string): Promise<Payment[]> => {
+    try {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/payments/get/by-subscribtion-id/${subscriptionId}`);
+      
+      console.log(`Payments response for subscription ${subscriptionId}:`, response.data);
+      
+      if (response.data.status === "success" && response.data.data) {
+        // Handle both single object and array responses
+        let payments = [];
+        
+        if (Array.isArray(response.data.data)) {
+          payments = response.data.data;
+        } else if (typeof response.data.data === 'object') {
+          payments = [response.data.data];
+        }
+        
+        // Transform payments data based on actual API response structure
+        return payments.map((payment: any) => ({
+          id: payment._id,
+          serviceId: payment.service_id || '',
+          serviceName: payment.service_name || 'Unknown Service', // This will be filled later
+          subscriptionId: payment.subscription_id || subscriptionId,
+          amount: payment.amount || 0,
+          status: payment.status || 'pending',
+          customerWallet: payment.metadata?.payer || payment.customer_wallet || payment.user_id || 'Unknown',
+          txHash: payment.transaction_hash || payment.tx_hash || payment.txHash,
+          createdAt: payment.processed_at || payment.createdAt || payment.created_at || payment.payment_date || new Date().toISOString()
+        }));
+      }
+      
+      return [];
+    } catch (error: any) {
+      console.error(`Error fetching payments for subscription ${subscriptionId}:`, error);
+      
+      // Check if it's a 404 (no payments found)
+      if (error.response?.status === 404 || error.response?.data?.message?.includes('not found')) {
+        console.log(`No payments found for subscription ${subscriptionId}`);
+        return [];
+      }
+      
+      return [];
+    }
+  };
+
+  // Fetch all payments for all subscriptions
+  const fetchAllPayments = async () => {
+    if (!account?._id) return;
+    
+    try {
+      console.log('Fetching all payments for provider:', account._id);
+      
+      let allPayments: Payment[] = [];
+      
+      // For each subscriber, fetch their payments
+      for (const subscriber of subscribers) {
+        try {
+          const subscriptionPayments = await fetchPaymentsBySubscription(subscriber.id);
+          
+          // Add service name and customer info to payments from subscriber data
+          const enrichedPayments = subscriptionPayments.map(payment => ({
+            ...payment,
+            serviceName: subscriber.serviceName, // Use subscriber's service name
+            serviceId: subscriber.serviceId, // Use subscriber's service ID
+            customerWallet: payment.customerWallet !== 'Unknown' ? payment.customerWallet : subscriber.walletAddress // Use subscriber's wallet if payment doesn't have customer info
+          }));
+          
+          allPayments = [...allPayments, ...enrichedPayments];
+          console.log(`Found ${subscriptionPayments.length} payments for subscriber ${subscriber.id} (${subscriber.serviceName})`);
+        } catch (error) {
+          console.error(`Error fetching payments for subscriber ${subscriber.id}:`, error);
+        }
+      }
+      
+      console.log(`Total payments found: ${allPayments.length}`);
+      setPayments(allPayments);
+    } catch (error) {
+      console.error("Error fetching all payments:", error);
+    }
+  };
+
+  // Fetch subscription count by service ID
+  const fetchSubscriptionCount = async (serviceId: string): Promise<number> => {
+    try {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/subscriptions/get/by-service/${serviceId}`);
+      
+      console.log(`Subscription response for service ${serviceId}:`, response.data);
+      
+      // Handle different response structures
+      if (response.data.status === "success") {
+        if (response.data.data) {
+          // Check if data is an array
+          if (Array.isArray(response.data.data)) {
+            return response.data.data.length;
+          } 
+          // If data is a single object, count it as 1
+          else if (typeof response.data.data === 'object') {
+            return 1;
+          }
+        }
+        // No subscriptions found (data is null/undefined)
+        return 0;
+      }
+      
+      // If status is not success but no error thrown, return 0
+      return 0;
+    } catch (error: any) {
+      console.error(`Error fetching subscription count for service ${serviceId}:`, error);
+      
+      // Check if it's a 404 or similar (no subscriptions found)
+      if (error.response?.status === 404 || error.response?.data?.message?.includes('not found')) {
+        console.log(`No subscriptions found for service ${serviceId}`);
+        return 0;
+      }
+      
+      return 0;
+    }
+  };
+
   // Fetch services by provider ID
   const fetchServicesByProvider = async () => {
     if (!account?._id) return;
@@ -83,16 +205,24 @@ const DashboardPage = () => {
       
       if (response.data.status === "success" && response.data.data) {
         // Transform API data to match your interface
-        const transformedServices = response.data.data.map((service: any) => ({
-          id: service._id,
-          name: service.name,
-          description: service.description,
-          price: service.pricing?.amount || 0,
-          billingCycle: service.pricing?.billingCycle || 'monthly',
-          subscribers: service.subscribers || 0,
-          status: service.status || 'active',
-          createdAt: service.createdAt
-        }));
+        const transformedServices = await Promise.all(
+          response.data.data.map(async (service: any) => {
+            // Fetch subscription count for each service
+            const subscriptionCount = await fetchSubscriptionCount(service._id);
+            
+            return {
+              id: service._id,
+              name: service.name,
+              description: service.description,
+              price: service.pricing?.amount || 0,
+              billingCycle: service.pricing?.billingCycle || 'monthly',
+              subscribers: subscriptionCount,
+              status: service.status || 'active',
+              createdAt: service.createdAt
+            };
+          })
+        );
+        
         setServices(transformedServices);
       } else {
         console.log("No services found for this provider");
@@ -107,108 +237,106 @@ const DashboardPage = () => {
     }
   };
 
+  // Fetch all subscriptions for the provider
+  const fetchAllSubscriptions = async () => {
+    if (!account?._id) return;
+    
+    try {
+      console.log('Fetching all subscriptions for provider:', account._id);
+      
+      // Get all services first
+      const servicesResponse = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/services-k/get/by-provider-id/${account._id}`);
+      
+      if (servicesResponse.data.status === "success" && servicesResponse.data.data) {
+        let allSubscriptions: any[] = [];
+        
+        // Fetch subscriptions for each service
+        await Promise.all(
+          servicesResponse.data.data.map(async (service: any) => {
+            try {
+              console.log(`Fetching subscriptions for service: ${service.name} (${service._id})`);
+              
+              const subscriptionsResponse = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/subscriptions/get/by-service/${service._id}`);
+              
+              console.log(`Subscriptions response for ${service.name}:`, subscriptionsResponse.data);
+              
+              if (subscriptionsResponse.data.status === "success" && subscriptionsResponse.data.data) {
+                // Handle both single object and array responses
+                let subscriptions = [];
+                
+                if (Array.isArray(subscriptionsResponse.data.data)) {
+                  subscriptions = subscriptionsResponse.data.data;
+                } else if (typeof subscriptionsResponse.data.data === 'object') {
+                  // Single subscription object
+                  subscriptions = [subscriptionsResponse.data.data];
+                }
+                
+                const transformedSubscriptions = subscriptions.map((sub: any) => ({
+                  id: sub._id,
+                  serviceId: service._id,
+                  serviceName: service.name,
+                  walletAddress: sub.user_id || sub.subscriberAddress || sub.walletAddress || 'Unknown',
+                  status: sub.status || 'active',
+                  subscribedAt: sub.createdAt || sub.subscribedAt || sub.start_date,
+                  nextBilling: sub.nextBilling || sub.next_payment_date,
+                  totalPaid: sub.totalPaid || 0
+                }));
+                
+                console.log(`Found ${transformedSubscriptions.length} subscriptions for ${service.name}`);
+                allSubscriptions = [...allSubscriptions, ...transformedSubscriptions];
+              } else {
+                console.log(`No subscriptions found for service: ${service.name}`);
+              }
+            } catch (error: any) {
+              console.error(`Error fetching subscriptions for service ${service._id}:`, error);
+              
+              // If it's a 404, that's fine - just means no subscriptions
+              if (error.response?.status !== 404) {
+                console.error(`Unexpected error for service ${service.name}:`, error.message);
+              } else {
+                console.log(`No subscriptions found for service: ${service.name} (404)`);
+              }
+            }
+          })
+        );
+        
+        console.log(`Total subscriptions found: ${allSubscriptions.length}`);
+        setSubscribers(allSubscriptions);
+      }
+    } catch (error) {
+      console.error("Error fetching all subscriptions:", error);
+    }
+  };
+
   // Load data when component mounts or account changes
   useEffect(() => {
     if (account?._id) {
       fetchServicesByProvider();
+      fetchAllSubscriptions();
     } else {
-      // Load mock data if no account (for demo purposes)
-      setTimeout(() => {
-        setServices([
-          {
-            id: '1',
-            name: 'Premium Streaming',
-            description: 'High-quality video streaming service',
-            price: 15.99,
-            billingCycle: 'monthly',
-            subscribers: 1247,
-            status: 'active',
-            createdAt: '2024-01-15',
-          },
-          {
-            id: '2',
-            name: 'Cloud Storage Pro',
-            description: 'Secure cloud storage with 1TB space',
-            price: 9.99,
-            billingCycle: 'monthly',
-            subscribers: 892,
-            status: 'active',
-            createdAt: '2024-02-01',
-          },
-          {
-            id: '3',
-            name: 'Design Tools Suite',
-            description: 'Professional design tools and templates',
-            price: 29.99,
-            billingCycle: 'monthly',
-            subscribers: 456,
-            status: 'active',
-            createdAt: '2024-01-10',
-          }
-        ]);
-        setLoading(false);
-      }, 1000);
+      // No account connected - clear data and stop loading
+      setServices([]);
+      setSubscribers([]);
+      setPayments([]);
+      setLoading(false);
     }
-
-    // Load mock payments and subscribers
-    setPayments([
-      {
-        id: '1',
-        serviceId: '1',
-        serviceName: 'Premium Streaming',
-        amount: 15.99,
-        status: 'completed',
-        customerWallet: '0x1234...5678',
-        txHash: '0xabcd...efgh',
-        createdAt: '2024-03-15T10:30:00Z'
-      },
-      {
-        id: '2',
-        serviceId: '2',
-        serviceName: 'Cloud Storage Pro',
-        amount: 9.99,
-        status: 'completed',
-        customerWallet: '0x2345...6789',
-        txHash: '0xbcde...fghi',
-        createdAt: '2024-03-15T09:15:00Z'
-      },
-      {
-        id: '3',
-        serviceId: '1',
-        serviceName: 'Premium Streaming',
-        amount: 15.99,
-        status: 'pending',
-        customerWallet: '0x3456...7890',
-        createdAt: '2024-03-15T08:45:00Z'
-      }
-    ]);
-
-    setSubscribers([
-      {
-        id: '1',
-        serviceId: '1',
-        serviceName: 'Premium Streaming',
-        walletAddress: '0x1234...5678',
-        status: 'active',
-        subscribedAt: '2024-01-15',
-        nextBilling: '2024-04-15',
-        totalPaid: 47.97
-      },
-      {
-        id: '2',
-        serviceId: '2',
-        serviceName: 'Cloud Storage Pro',
-        walletAddress: '0x2345...6789',
-        status: 'active',
-        subscribedAt: '2024-02-01',
-        nextBilling: '2024-04-01',
-        totalPaid: 19.98
-      }
-    ]);
   }, [account?._id]);
+
+  // Fetch payments after subscribers are loaded
+  useEffect(() => {
+    if (subscribers.length > 0) {
+      fetchAllPayments();
+    }
+  }, [subscribers]);
 
   const totalSubscribers = services.reduce((sum, service) => sum + service.subscribers, 0);
   const activeServices = services.filter(s => s.status === 'active').length;
+  const totalRevenue = payments
+    .filter(p => p.status === 'completed')
+    .reduce((sum, payment) => sum + payment.amount, 0);
+  const successRate = payments.length > 0 
+    ? ((payments.filter(p => p.status === 'completed').length / payments.length) * 100).toFixed(1)
+    : '0';
 
   if (!isConnected) {
     return (
@@ -300,6 +428,8 @@ const DashboardPage = () => {
                   totalSubscribers={totalSubscribers}
                   activeServices={activeServices}
                   payments={payments}
+                  totalRevenue={totalRevenue}
+                  successRate={successRate}
                 />
               )}
               
@@ -311,7 +441,10 @@ const DashboardPage = () => {
                   setShowCreateService={setShowCreateService}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
-                  onServiceCreated={fetchServicesByProvider}
+                  onServiceCreated={() => {
+                    fetchServicesByProvider();
+                    fetchAllSubscriptions();
+                  }}
                 />
               )}
               
@@ -328,6 +461,7 @@ const DashboardPage = () => {
                   subscribers={subscribers}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
+                  onPaymentsFetch={fetchPaymentsBySubscription}
                 />
               )}
             </>
@@ -364,12 +498,16 @@ const OverviewTab = ({
   services, 
   totalSubscribers, 
   activeServices, 
-  payments 
+  payments,
+  totalRevenue,
+  successRate
 }: {
   services: Service[];
   totalSubscribers: number;
   activeServices: number;
   payments: Payment[];
+  totalRevenue: number;
+  successRate: string;
 }) => (
   <div className="space-y-6">
     <div className="flex items-center justify-between">
@@ -396,8 +534,15 @@ const OverviewTab = ({
         trendUp={null}
       />
       <StatsCard
+        title="Total Revenue"
+        value={`$${totalRevenue.toFixed(2)}`}
+        icon={<DollarSign className="w-8 h-8" />}
+        trend="+15.3%"
+        trendUp={true}
+      />
+      <StatsCard
         title="Success Rate"
-        value="98.5%"
+        value={`${successRate}%`}
         icon={<TbChartLine className="w-8 h-8" />}
         trend="+2.1%"
         trendUp={true}
@@ -408,22 +553,34 @@ const OverviewTab = ({
     <div className="bg-[#1F2937] rounded-xl border border-gray-700 p-6">
       <h2 className="text-xl font-bold mb-4">Top Performing Services</h2>
       <div className="space-y-4">
-        {services.slice(0, 3).map((service) => (
-          <div key={service.id} className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] rounded-lg flex items-center justify-center">
-                <Settings className="w-6 h-6 text-white" />
+        {services.length > 0 ? (
+          services
+            .sort((a, b) => b.subscribers - a.subscribers)
+            .slice(0, 3)
+            .map((service) => (
+              <div key={service.id} className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] rounded-lg flex items-center justify-center">
+                    <Settings className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{service.name}</h3>
+                    <p className="text-sm text-gray-400">{service.subscribers} subscribers</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-400">${service.price}/{service.billingCycle}</p>
+                  <p className="text-xs text-green-400">
+                    Revenue: ${(service.price * service.subscribers).toFixed(2)}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold">{service.name}</h3>
-                <p className="text-sm text-gray-400">{service.subscribers} subscribers</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-400">${service.price}/{service.billingCycle}</p>
-            </div>
+            ))
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-400">No services created yet</p>
           </div>
-        ))}
+        )}
       </div>
     </div>
 
@@ -431,25 +588,31 @@ const OverviewTab = ({
     <div className="bg-[#1F2937] rounded-xl border border-gray-700 p-6">
       <h2 className="text-xl font-bold mb-4">Recent Payments</h2>
       <div className="space-y-3">
-        {payments.slice(0, 5).map((payment) => (
-          <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                "w-3 h-3 rounded-full",
-                payment.status === 'completed' ? 'bg-green-500' :
-                payment.status === 'pending' ? 'bg-yellow-500' : 'bg-red-500'
-              )} />
-              <div>
-                <p className="font-medium">{payment.serviceName}</p>
-                <p className="text-sm text-gray-400">{payment.customerWallet}</p>
+        {payments.length > 0 ? (
+          payments.slice(0, 5).map((payment) => (
+            <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-3 h-3 rounded-full",
+                  payment.status === 'completed' ? 'bg-green-500' :
+                  payment.status === 'pending' ? 'bg-yellow-500' : 'bg-red-500'
+                )} />
+                <div>
+                  <p className="font-medium">{payment.serviceName}</p>
+                  <p className="text-sm text-gray-400">{payment.customerWallet}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold">${payment.amount}</p>
+                <p className="text-sm text-gray-400">{new Date(payment.createdAt).toLocaleDateString()}</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="font-semibold">${payment.amount}</p>
-              <p className="text-sm text-gray-400">{new Date(payment.createdAt).toLocaleDateString()}</p>
-            </div>
+          ))
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-400">No payments yet</p>
           </div>
-        ))}
+        )}
       </div>
     </div>
   </div>
@@ -563,6 +726,9 @@ const PaymentsTab = ({
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Payments</h1>
         <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-400">
+            Total: {payments.length} payments
+          </div>
           <select className="px-4 py-2 bg-[#1F2937] border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]">
             <option>All Status</option>
             <option>Completed</option>
@@ -599,9 +765,23 @@ const PaymentsTab = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-600">
-              {filteredPayments.map((payment) => (
-                <PaymentRow key={payment.id} payment={payment} />
-              ))}
+              {filteredPayments.length > 0 ? (
+                filteredPayments.map((payment) => (
+                  <PaymentRow key={payment.id} payment={payment} />
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center">
+                    <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CreditCard className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-300 mb-2">No Payments Found</h3>
+                    <p className="text-gray-400">
+                      {searchTerm ? "No payments match your search criteria." : "No payments yet."}
+                    </p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -614,22 +794,46 @@ const PaymentsTab = ({
 const SubscribersTab = ({ 
   subscribers, 
   searchTerm, 
-  setSearchTerm 
+  setSearchTerm,
+  onPaymentsFetch
 }: {
   subscribers: Subscriber[];
   searchTerm: string;
   setSearchTerm: React.Dispatch<React.SetStateAction<string>>;
+  onPaymentsFetch: (subscriptionId: string) => Promise<Payment[]>;
 }) => {
+  const [selectedSubscriber, setSelectedSubscriber] = useState<Subscriber | null>(null);
+  const [subscriberPayments, setSubscriberPayments] = useState<Payment[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+
   const filteredSubscribers = subscribers.filter(subscriber =>
     subscriber.serviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     subscriber.walletAddress.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleViewPayments = async (subscriber: Subscriber) => {
+    setSelectedSubscriber(subscriber);
+    setLoadingPayments(true);
+    
+    try {
+      const payments = await onPaymentsFetch(subscriber.id);
+      setSubscriberPayments(payments);
+    } catch (error) {
+      console.error('Error fetching payments:', error);
+      toast.error('Failed to load payments');
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Subscribers</h1>
         <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-400">
+            Total: {subscribers.length} subscribers
+          </div>
           <select className="px-4 py-2 bg-[#1F2937] border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#6366F1]">
             <option>All Status</option>
             <option>Active</option>
@@ -653,10 +857,39 @@ const SubscribersTab = ({
 
       {/* Subscribers Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredSubscribers.map((subscriber) => (
-          <SubscriberCard key={subscriber.id} subscriber={subscriber} />
-        ))}
+        {filteredSubscribers.length > 0 ? (
+          filteredSubscribers.map((subscriber) => (
+            <SubscriberCard 
+              key={subscriber.id} 
+              subscriber={subscriber} 
+              onViewPayments={() => handleViewPayments(subscriber)}
+            />
+          ))
+        ) : (
+          <div className="col-span-full text-center py-12">
+            <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Users className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-300 mb-2">No Subscribers Found</h3>
+            <p className="text-gray-400">
+              {searchTerm ? "No subscribers match your search criteria." : "No subscribers yet."}
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Payments Modal */}
+      {selectedSubscriber && (
+        <PaymentsModal
+          subscriber={selectedSubscriber}
+          payments={subscriberPayments}
+          loading={loadingPayments}
+          onClose={() => {
+            setSelectedSubscriber(null);
+            setSubscriberPayments([]);
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -741,7 +974,10 @@ const ServiceCard = ({ service }: { service: Service }) => (
       
       <div className="pt-3 border-t border-gray-600">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-400">Revenue</span>
+          <span className="text-sm text-gray-400">Monthly Revenue</span>
+          <span className="font-semibold text-green-400">
+            ${(service.price * service.subscribers * (service.billingCycle === 'yearly' ? 1/12 : service.billingCycle === 'weekly' ? 4 : 1)).toFixed(2)}
+          </span>
         </div>
       </div>
     </div>
@@ -795,7 +1031,13 @@ const PaymentRow = ({ payment }: { payment: Payment }) => (
 );
 
 // Subscriber Card Component
-const SubscriberCard = ({ subscriber }: { subscriber: Subscriber }) => (
+const SubscriberCard = ({ 
+  subscriber, 
+  onViewPayments 
+}: { 
+  subscriber: Subscriber;
+  onViewPayments: () => void;
+}) => (
   <div className="bg-[#1F2937] rounded-xl border border-gray-700 p-6">
     <div className="flex items-center justify-between mb-4">
       <div className={cn(
@@ -807,6 +1049,13 @@ const SubscriberCard = ({ subscriber }: { subscriber: Subscriber }) => (
         {subscriber.status.charAt(0).toUpperCase() + subscriber.status.slice(1)}
       </div>
       <div className="flex items-center gap-2">
+        <button 
+          onClick={onViewPayments}
+          className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+          title="View Payments"
+        >
+          <CreditCard className="w-4 h-4" />
+        </button>
         <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
           <Eye className="w-4 h-4" />
         </button>
@@ -841,6 +1090,111 @@ const SubscriberCard = ({ subscriber }: { subscriber: Subscriber }) => (
           <span className="font-semibold text-green-400">${subscriber.totalPaid}</span>
         </div>
       </div>
+    </div>
+  </div>
+);
+
+// Payments Modal Component
+const PaymentsModal = ({
+  subscriber,
+  payments,
+  loading,
+  onClose
+}: {
+  subscriber: Subscriber;
+  payments: Payment[];
+  loading: boolean;
+  onClose: () => void;
+}) => (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="bg-gradient-to-br from-[#1F2937] to-[#374151] p-8 rounded-3xl border border-gray-700 max-w-4xl w-full relative max-h-[90vh] overflow-y-auto">
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+      >
+        <X className="w-6 h-6" />
+      </button>
+      
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] rounded-lg flex items-center justify-center">
+            <CreditCard className="w-6 h-6 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-white">Payment History</h2>
+        </div>
+        <p className="text-gray-400">
+          Payments for {subscriber.serviceName} - {subscriber.walletAddress}
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-[#6366F1] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading payments...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {payments.length > 0 ? (
+            <div className="bg-gray-800/50 rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Amount</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Date</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Transaction</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-600">
+                  {payments.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-gray-700/50">
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-green-400">${payment.amount}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {payment.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-400" />}
+                          {payment.status === 'pending' && <Clock className="w-4 h-4 text-yellow-400" />}
+                          {payment.status === 'failed' && <AlertCircle className="w-4 h-4 text-red-400" />}
+                          <span className={cn(
+                            "text-sm font-medium",
+                            payment.status === 'completed' ? 'text-green-400' :
+                            payment.status === 'pending' ? 'text-yellow-400' : 'text-red-400'
+                          )}>
+                            {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-400">
+                        {new Date(payment.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        {payment.txHash ? (
+                          <button className="text-[#6366F1] hover:text-[#8B5CF6] text-sm font-mono">
+                            {payment.txHash.slice(0, 12)}...
+                          </button>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CreditCard className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-300 mb-2">No Payments Found</h3>
+              <p className="text-gray-400">No payment history for this subscription yet.</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   </div>
 );
@@ -887,7 +1241,7 @@ const CreateServiceModal = ({
       
       if (response.data.status === "success") {
         toast.success('Service created successfully!');
-        onSuccess(); // Close modal and refresh services
+        onSuccess();
       } else {
         toast.error('Failed to create service');
       }

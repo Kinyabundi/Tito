@@ -30,6 +30,7 @@ export class SubscriptionRepository {
 		return await Subscription.find({ service_id: new mongoose.Types.ObjectId(serviceId) }).exec();
 	}
 
+
 	async updateSubscription(id: string, updates: Partial<ISubscription>): Promise<ISubscription | null> {
 		return await Subscription.findByIdAndUpdate(new mongoose.Types.ObjectId(id), { $set: updates }, { new: true }).populate("service_id").exec();
 	}

@@ -28,6 +28,11 @@ export class SubscriptionManagementService {
 		return await this.subscriptionRepository.findById(subscriptionId);
 	}
 
+	async getSubscriptionByServiceId(service_id: string): Promise<ISubscription | null> {
+		const subscriptions = await this.subscriptionRepository.findByServiceId(service_id);
+		return subscriptions.length > 0 ? subscriptions[0] : null;
+	}
+
 	async getUserSubscriptions(userId: string): Promise<ISubscription[]> {
 		return await this.subscriptionRepository.findByUserId(userId);
 	}
